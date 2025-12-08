@@ -358,3 +358,56 @@ export const subscribeToDailyConsumption = (acId, callback) => {
     }
   });
 };
+
+// ============ TEMPERATURE LOGS ============
+
+export const logTemperatureChange = async (
+  acId,
+  oldTemp,
+  newTemp,
+  source = "user"
+) => {
+  const logRef = push(ref(database, `temperature_logs/${acId}`));
+  const logData = {
+    timestamp: Date.now(),
+    oldTemp,
+    newTemp,
+    source, // 'user' or 'system' or 'ai'
+    date: new Date().toISOString(),
+  };
+  await set(logRef, logData);
+  return logRef.key;
+};
+
+export const getTemperatureLogs = async (acId, period = "day") => {
+  const logsRef = ref(database, `temperature_logs/${acId}`);
+  const snapshot = await get(logsRef);
+
+  if (!snapshot.exists()) return [];
+
+  const logs = [];
+  snapshot.forEach((childSnapshot) => {
+    logs.push({
+      id: childSnapshot.key,
+      ...childSnapshot.val(),
+    });
+  });
+
+  // Filter based on period
+  const now = new Date();
+  let startTime;
+
+  if (period === "day") {
+    startTime = startOfDay(now).getTime();
+  } else if (period === "week") {
+    startTime = startOfWeek(now).getTime(); // Note: startOfWeek defaults to Sunday. Adjust if needed.
+  } else if (period === "month") {
+    startTime = startOfMonth(now).getTime();
+  } else {
+    startTime = 0; // All time
+  }
+
+  return logs
+    .filter((log) => log.timestamp >= startTime)
+    .sort((a, b) => b.timestamp - a.timestamp);
+};

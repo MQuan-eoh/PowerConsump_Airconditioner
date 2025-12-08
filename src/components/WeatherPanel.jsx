@@ -191,39 +191,31 @@ const WeatherPanel = () => {
 
         <div className="weather-details">
           <div className="weather-detail-item">
-            <div className="detail-icon">💧</div>
             <div className="detail-label">{t("humidity")}</div>
             <div className="detail-value">{current.relative_humidity_2m}%</div>
           </div>
 
           <div className="weather-detail-item">
-            <div className="detail-icon">
-              <img src={windIcon} alt="Wind" className="detail-img-3d" />
-            </div>
             <div className="detail-label">{t("windSpeed")}</div>
             <div className="detail-value">{current.wind_speed_10m} km/h</div>
           </div>
 
           <div className="weather-detail-item">
-            <div className="detail-icon">⏲️</div>
             <div className="detail-label">{t("pressure")}</div>
             <div className="detail-value">{current.surface_pressure} hPa</div>
           </div>
 
           <div className="weather-detail-item">
-            <div className="detail-icon">☀️</div>
             <div className="detail-label">{t("uvIndex")}</div>
             <div className="detail-value">{daily.uv_index_max[0]}</div>
           </div>
 
           <div className="weather-detail-item">
-            <div className="detail-icon">🌅</div>
             <div className="detail-label">{t("sunrise")}</div>
             <div className="detail-value">{formatTime(daily.sunrise[0])}</div>
           </div>
 
           <div className="weather-detail-item">
-            <div className="detail-icon">🌇</div>
             <div className="detail-label">{t("sunset")}</div>
             <div className="detail-value">{formatTime(daily.sunset[0])}</div>
           </div>
