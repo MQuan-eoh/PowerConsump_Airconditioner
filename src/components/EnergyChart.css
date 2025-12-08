@@ -1,13 +1,13 @@
 .energy-chart {
   width: 100%;
-  height: 350px;
+  height: 250px;
 }
 
 .chart-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 350px;
+  height: 250px;
   color: var(--text-muted);
 }
 

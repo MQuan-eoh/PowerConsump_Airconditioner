@@ -38,7 +38,7 @@ export const createACUnit = async (acData) => {
     isEraLinked: false, // Default to false for new units
 
     // Current state
-    isOnline: true,
+    isOnline: false,
     isOn: false,
     temperature: 26,
     fanMode: "auto", // auto | low | medium | high

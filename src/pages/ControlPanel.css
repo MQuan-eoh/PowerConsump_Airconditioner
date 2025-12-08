@@ -89,7 +89,7 @@
 .era-realtime h3 {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   margin-bottom: 16px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -112,7 +112,7 @@
 
 .era-label {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -120,7 +120,7 @@
 .era-value {
   font-size: 18px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .control-content {
@@ -368,7 +368,7 @@
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 20px;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .stats-grid {
@@ -413,7 +413,7 @@
 .chart-header h3 {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .chart-period-selector {

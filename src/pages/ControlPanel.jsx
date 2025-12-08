@@ -12,6 +12,7 @@ import {
 import { useLanguage } from "../contexts/LanguageContext";
 import { useEra } from "../contexts/EraContext";
 import EnergyChart from "../components/EnergyChart";
+import WeatherPanel from "../components/WeatherPanel";
 import ACSettings from "../components/ACSettings";
 import "./ControlPanel.css";
 
@@ -112,6 +113,13 @@ const ControlPanel = () => {
       }));
     }
   }, [isEraReady, eraValues.powerConsumption, isEraLinked]);
+
+  // Sync online status with E-RA
+  useEffect(() => {
+    if (ac && isEraLinked && isEraReady && !ac.isOnline) {
+      updateACUnit(acId, { isOnline: true });
+    }
+  }, [isEraReady, isEraLinked, ac?.isOnline, acId]);
 
   const handlePowerToggle = async () => {
     if (ac) {
@@ -509,6 +517,8 @@ const ControlPanel = () => {
             </div>
             <EnergyChart data={energyHistory} period={chartPeriod} />
           </div>
+
+          <WeatherPanel />
         </div>
       </div>
 

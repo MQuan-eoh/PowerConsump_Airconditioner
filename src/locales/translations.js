@@ -116,6 +116,23 @@ export const translations = {
     confirmDeleteBill: "Are you sure you want to delete this bill?",
     confirmDeleteAC: "Are you sure you want to delete this AC?",
 
+    // Weather Panel
+    weatherTitle: "Weather Information",
+    humidity: "Humidity",
+    windSpeed: "Wind Speed",
+    pressure: "Pressure",
+    uvIndex: "UV Index",
+    sunrise: "Sunrise",
+    sunset: "Sunset",
+    clearSky: "Clear sky",
+    cloudy: "Cloudy",
+    fog: "Fog",
+    drizzle: "Drizzle",
+    rain: "Rain",
+    snow: "Snow",
+    thunderstorm: "Thunderstorm",
+    feelsLike: "Feels like",
+
     // Language
     language: "Language",
     english: "English",
@@ -237,6 +254,23 @@ export const translations = {
     amount: "Số tiền:",
     confirmDeleteBill: "Bạn có chắc muốn xóa hóa đơn này?",
     confirmDeleteAC: "Bạn có chắc muốn xóa điều hòa này?",
+
+    // Weather Panel
+    weatherTitle: "Thông tin thời tiết",
+    humidity: "Độ ẩm",
+    windSpeed: "Tốc độ gió",
+    pressure: "Áp suất",
+    uvIndex: "Chỉ số UV",
+    sunrise: "Bình minh",
+    sunset: "Hoàng hôn",
+    clearSky: "Trời quang",
+    cloudy: "Nhiều mây",
+    fog: "Sương mù",
+    drizzle: "Mưa phùn",
+    rain: "Mưa",
+    snow: "Tuyết",
+    thunderstorm: "Dông",
+    feelsLike: "Cảm giác như",
 
     // Language
     language: "Ngôn ngữ",

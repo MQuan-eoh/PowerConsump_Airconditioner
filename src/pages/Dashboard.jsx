@@ -73,10 +73,7 @@ const Dashboard = () => {
   return (
     <div className="dashboard">
       <header className="dashboard-header">
-        <div className="header-left">
-          <h1 className="dashboard-title">{t("dashboardTitle")}</h1>
-          <p className="dashboard-subtitle">{t("dashboardSubtitle")}</p>
-        </div>
+        <div className="header-left"></div>
         <div className="header-right">
           <LanguageSwitcher />
           <button
