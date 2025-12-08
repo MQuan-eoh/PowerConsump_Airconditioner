@@ -1,0 +1,270 @@
+.ac-card {
+  padding: 20px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.ac-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--text-muted);
+  transition: all 0.3s ease;
+}
+
+.ac-card.online::before {
+  background: var(--accent-green);
+  box-shadow: 0 0 20px var(--accent-green);
+}
+
+.ac-card.online.active::before {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 20px var(--accent-cyan);
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 20px var(--accent-cyan);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 30px var(--accent-cyan), 0 0 40px var(--accent-blue);
+  }
+}
+
+.ac-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.ac-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-text {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ac-card.online .status-text {
+  color: var(--accent-green);
+}
+
+.ac-card.offline .status-text {
+  color: var(--text-muted);
+}
+
+.ac-card-actions {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.ac-card:hover .ac-card-actions {
+  opacity: 1;
+}
+
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-glass);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  background: var(--bg-glass-light);
+  color: var(--text-primary);
+}
+
+.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
+.ac-card-body {
+  text-align: center;
+}
+
+.ac-info {
+  margin-bottom: 16px;
+}
+
+.ac-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.ac-room {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.ac-temperature {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  margin: 24px 0;
+}
+
+.temp-value {
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--gradient-blue);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.temp-unit {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--accent-cyan);
+  margin-top: 8px;
+  margin-left: 4px;
+}
+
+.temp-unit::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  margin-right: 2px;
+  vertical-align: super;
+}
+
+.ac-temperature.off {
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.power-off-text {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.ac-details {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-glass);
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.detail-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.detail-value.ai-mode {
+  color: var(--accent-purple);
+  background: rgba(139, 92, 246, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.ac-card-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-glass);
+}
+
+.energy-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--accent-yellow);
+}
+
+.energy-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.energy-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-yellow);
+}
+
+.today-kwh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.today-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.today-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent-cyan);
+}
+
+.ac-card.no-data {
+  background: rgba(200, 200, 200, 0.05);
+  border-color: rgba(200, 200, 200, 0.1);
+}
+
+.ac-card.offline {
+  filter: grayscale(1);
+  opacity: 0.8;
+}
+
+.ac-card.no-data .ac-temperature,
+.ac-card.no-data .energy-value,
+.ac-card.no-data .today-value {
+  color: var(--text-muted);
+}
