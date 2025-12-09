@@ -16,6 +16,7 @@ import EnergyChart from "../components/EnergyChart";
 import WeatherPanel from "../components/WeatherPanel";
 import ACSettings from "../components/ACSettings";
 import TemperatureLogModal from "../components/TemperatureLogModal";
+import { getTempColor } from "../utils/tempUtils";
 import "./ControlPanel.css";
 
 const ControlPanel = () => {
@@ -377,6 +378,9 @@ const ControlPanel = () => {
               <motion.div
                 className={`temperature-display ${ac.isOn ? "active" : ""}`}
                 animate={{ scale: ac.isOn ? 1 : 0.9 }}
+                style={{
+                  color: ac.isOn ? getTempColor(ac.temperature) : undefined,
+                }}
               >
                 {ac.isOn ? (
                   <>

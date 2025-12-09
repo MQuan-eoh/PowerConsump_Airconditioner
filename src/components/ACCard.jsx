@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
+import { getTempColor } from "../utils/tempUtils";
 import "./ACCard.css";
 
 const ACCard = ({ ac, monthlyKwh, onClick, onDelete }) => {
@@ -97,6 +98,7 @@ const ACCard = ({ ac, monthlyKwh, onClick, onDelete }) => {
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 200 }}
+            style={{ color: getTempColor(ac.temperature) }}
           >
             <span className="temp-value">{ac.temperature}</span>
             <span className="temp-unit">C</span>

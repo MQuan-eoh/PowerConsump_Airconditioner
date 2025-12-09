@@ -14,7 +14,42 @@ import {
 } from "recharts";
 import { useLanguage } from "../contexts/LanguageContext";
 import { getTemperatureLogs } from "../services/firebaseService";
+import { getTempColor } from "../utils/tempUtils";
 import "./TemperatureLogModal.css";
+
+const CustomBarShape = (props) => {
+  const { fill, x, y, width, height } = props;
+
+  return (
+    <g>
+      {/* Front Face */}
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={fill}
+        opacity={0.8}
+      />
+      {/* Top Face (Simulated 3D) */}
+      <path
+        d={`M${x},${y} L${x + 5},${y - 5} L${x + width + 5},${y - 5} L${
+          x + width
+        },${y} Z`}
+        fill={fill}
+        opacity={0.6}
+      />
+      {/* Side Face (Simulated 3D) */}
+      <path
+        d={`M${x + width},${y} L${x + width + 5},${y - 5} L${x + width + 5},${
+          y + height - 5
+        } L${x + width},${y + height} Z`}
+        fill={fill}
+        opacity={0.4}
+      />
+    </g>
+  );
+};
 
 const TemperatureLogModal = ({ isOpen, onClose, acId }) => {
   const { t } = useLanguage();
@@ -60,39 +95,6 @@ const TemperatureLogModal = ({ isOpen, onClose, acId }) => {
     ...log,
     timeLabel: formatChartTime(log.timestamp),
   }));
-
-  const CustomBarShape = (props) => {
-    const { fill, x, y, width, height } = props;
-    return (
-      <g>
-        {/* Front Face */}
-        <rect
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          fill={fill}
-          opacity={0.8}
-        />
-        {/* Top Face (Simulated 3D) */}
-        <path
-          d={`M${x},${y} L${x + 5},${y - 5} L${x + width + 5},${y - 5} L${
-            x + width
-          },${y} Z`}
-          fill={fill}
-          opacity={0.6}
-        />
-        {/* Side Face (Simulated 3D) */}
-        <path
-          d={`M${x + width},${y} L${x + width + 5},${y - 5} L${x + width + 5},${
-            y + height - 5
-          } L${x + width},${y + height} Z`}
-          fill={fill}
-          opacity={0.4}
-        />
-      </g>
-    );
-  };
 
   return (
     <AnimatePresence>
@@ -250,9 +252,7 @@ const TemperatureLogModal = ({ isOpen, onClose, acId }) => {
                           {chartData.map((entry, index) => (
                             <Cell
                               key={`cell-${index}`}
-                              fill={
-                                entry.source === "user" ? "#4facfe" : "#00f2fe"
-                              }
+                              fill={getTempColor(entry.newTemp)}
                             />
                           ))}
                         </Bar>
@@ -288,8 +288,22 @@ const TemperatureLogModal = ({ isOpen, onClose, acId }) => {
                         {logs.map((log) => (
                           <tr key={log.id}>
                             <td>{formatTime(log.timestamp)}</td>
-                            <td>{log.oldTemp}°C</td>
-                            <td>{log.newTemp}°C</td>
+                            <td
+                              style={{
+                                color: getTempColor(log.oldTemp),
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {log.oldTemp}°C
+                            </td>
+                            <td
+                              style={{
+                                color: getTempColor(log.newTemp),
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {log.newTemp}°C
+                            </td>
                             <td>
                               {log.source === "user"
                                 ? t("manualAdjustment")
