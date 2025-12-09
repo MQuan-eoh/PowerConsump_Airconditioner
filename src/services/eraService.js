@@ -527,6 +527,81 @@ export const cleanupEraWidget = () => {
   console.log("E-RA Widget cleaned up");
 };
 
+/**
+ * Get history values from E-RA API
+ * @param {number} configId - The configuration ID
+ * @param {string} dateFrom - Start date (YYYY-MM-DDTHH:mm:ss)
+ * @param {string} dateTo - End date (YYYY-MM-DDTHH:mm:ss)
+ * @returns {Promise<Array>} - Array of history values
+ */
+export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
+  try {
+    // Use full URL as requested
+    const url = `https://backend.eoh.io/api/chip_manager/configs/value_history_v3/?configs=${configId}&date_from=${encodeURIComponent(
+      dateFrom
+    )}&date_to=${encodeURIComponent(dateTo)}`;
+
+    console.log("EraService: Fetching history from:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": "Token a159b7047b33aebfdb2e83f614c5049e5d760d6d",
+      },
+    });
+
+    // Check content type to ensure it is JSON
+    const contentType = response.headers.get("content-type");
+    const isJsonResponse = contentType && contentType.includes("application/json");
+
+    if (!isJsonResponse) {
+      const text = await response.text();
+      console.error(`EraService: Non-JSON response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        body: text.substring(0, 200)
+      });
+      throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
+    }
+
+    if (!response.ok) {
+      let errorMessage = `API call failed: ${response.status} ${response.statusText}`;
+      if (response.status === 401) errorMessage = "Unauthorized: Invalid or expired token";
+      else if (response.status === 403) errorMessage = "Forbidden: Access denied";
+      else if (response.status === 404) errorMessage = "Not Found: Resource not found";
+      
+      console.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log("EraService: History Data Received:", data);
+
+    // Extract history from the response structure: [{ id: ..., history: [...] }]
+    if (Array.isArray(data) && data.length > 0 && data[0].history) {
+      return data[0].history;
+    }
+
+    return [];
+  } catch (error) {
+    console.error("EraService: Error fetching history:", error);
+    return [];
+  }
+};
+
+/**
+ * Get the Power Consumption Config ID
+ * @returns {number|null} - The ID or null if not loaded
+ */
+export const getPowerConsumptionConfigId = () => {
+  if (configPowerConsumption && configPowerConsumption.id) {
+    return configPowerConsumption.id;
+  }
+  return null;
+};
+
 export default {
   initEraWidget,
   getCurrentValues,
@@ -540,4 +615,6 @@ export default {
   onConfigurationLoaded,
   onHistoriesReceived,
   cleanupEraWidget,
+  getHistoryValueV3,
+  getPowerConsumptionConfigId,
 };

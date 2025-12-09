@@ -108,11 +108,11 @@ const EnergyChart = ({ data, period }) => {
       try {
         const date = parseISO(item.date);
         if (period === "day") {
-          label = format(date, "dd/MM");
+          label = format(date, "HH:mm");
         } else if (period === "week") {
           label = format(date, "dd/MM");
         } else {
-          label = format(date, "dd");
+          label = format(date, "dd/MM");
         }
       } catch (e) {
         label = item.date;

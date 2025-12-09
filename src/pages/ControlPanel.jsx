@@ -10,6 +10,11 @@ import {
   getYearlyConsumption,
   logTemperatureChange,
 } from "../services/firebaseService";
+import {
+  getHistoryValueV3,
+  getPowerConsumptionConfigId,
+} from "../services/eraService";
+import { getDateRange, processConsumptionData } from "../utils/dateFilter";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useEra } from "../contexts/EraContext";
 import EnergyChart from "../components/EnergyChart";
@@ -61,26 +66,58 @@ const ControlPanel = () => {
 
   useEffect(() => {
     const loadEnergyData = async () => {
-      let days = 7;
-      if (chartPeriod === "day") days = 7;
-      else if (chartPeriod === "week") days = 28;
-      else if (chartPeriod === "month") days = 30;
+      // Get Config ID
+      // Try to get from Era Service first, then fallback to hardcoded example if needed
+      let configId = getPowerConsumptionConfigId();
+      if (!configId) {
+        configId = 101076; // Fallback/Example ID as per requirements
+      }
 
-      const history = await getEnergyHistory(acId, days);
-      setEnergyHistory(history);
+      // 1. Fetch data for the Chart (based on chartPeriod)
+      const { date_from, date_to } = getDateRange(chartPeriod);
+      console.log(
+        `Fetching chart data for period: ${chartPeriod}, From: ${date_from}, To: ${date_to}`
+      );
 
-      const monthly = await getMonthlyConsumption(acId);
-      const yearly = await getYearlyConsumption(acId);
+      const historyData = await getHistoryValueV3(configId, date_from, date_to);
+      console.log("ControlPanel: Raw History Data:", historyData);
+
+      const { chartData } = processConsumptionData(historyData, chartPeriod);
+      console.log("ControlPanel: Processed Chart Data:", chartData);
+
+      setEnergyHistory(chartData);
+
+      // 2. Fetch data for Stats (Daily, Weekly, Monthly)
+      // Fetch all 3 to populate the stats cards correctly
+      const periods = ["day", "week", "month"];
+      const statsPromises = periods.map(async (p) => {
+        const range = getDateRange(p);
+        const data = await getHistoryValueV3(
+          configId,
+          range.date_from,
+          range.date_to
+        );
+        const { total } = processConsumptionData(data, p);
+        return { period: p, total };
+      });
+
+      const statsResults = await Promise.all(statsPromises);
+
+      const newStats = {
+        daily: statsResults.find((s) => s.period === "day")?.total || 0,
+        weekly: statsResults.find((s) => s.period === "week")?.total || 0,
+        monthly: statsResults.find((s) => s.period === "month")?.total || 0,
+        yearly: 0, // Not implemented yet
+      };
 
       setStats((prev) => ({
         ...prev,
-        monthly,
-        yearly,
+        ...newStats,
       }));
     };
 
     loadEnergyData();
-  }, [acId, chartPeriod]);
+  }, [acId, chartPeriod, isEraReady]); // Added isEraReady dependency to retry when Era is ready
 
   useEffect(() => {
     const unsubscribe = subscribeToDailyConsumption(acId, (data) => {
