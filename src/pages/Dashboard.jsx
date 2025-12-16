@@ -175,89 +175,119 @@ const Dashboard = () => {
     fetchBaselines();
   }, [acUnits]); // Run when acUnits list changes (e.g. initial load or add/remove)
 
-  // Step 3 & 4: Calculate monthly consumption every 5 minutes
+  // Step 3 & 4: Calculate monthly consumption
   useEffect(() => {
     const calculateMonthlyConsumption = async () => {
-      const units = acUnitsRef.current;
+      const units = acUnits; // Use current state directly as we are in useEffect dependency
       let total = 0;
 
-      console.log("Calculating monthly consumption...");
+      console.log("Calculating total monthly consumption...");
 
-      // Fetch current values for all units
-      const currentValues = {};
-
-      await Promise.all(
-        units.map(async (ac) => {
-          let currentVal = ac.currentKwh;
-
-          // If currentKwh is 0 or missing, try to fetch from E-RA
-          if (!currentVal || currentVal === 0) {
-            try {
-              let configId = getPowerConsumptionConfigId();
-              if (!configId) configId = 101076;
-
-              const now = new Date();
-              // Fetch last 15 minutes to be safe
-              const past = new Date(now.getTime() - 15 * 60 * 1000);
-              const dateFrom = format(past, "yyyy-MM-dd'T'HH:mm:ss");
-              const dateTo = format(now, "yyyy-MM-dd'T'HH:mm:ss");
-
-              const historyData = await getHistoryValueV3(
-                configId,
-                dateFrom,
-                dateTo
-              );
-
-              if (historyData && historyData.length > 0) {
-                // Sort by date descending to get latest
-                const sortedData = [...historyData].sort((a, b) => {
-                  const dateA = new Date(a.created_at || a.x);
-                  const dateB = new Date(b.created_at || b.x);
-                  return dateB - dateA;
-                });
-
-                const lastItem = sortedData[0];
-                const val = parseFloat(
-                  lastItem.val !== undefined ? lastItem.val : lastItem.y
-                );
-                if (!isNaN(val)) {
-                  currentVal = val;
-                }
-              }
-            } catch (e) {
-              console.error(`Error fetching current value for ${ac.id}:`, e);
-            }
-          }
-
-          currentValues[ac.id] = currentVal;
-        })
+      // 1. Filter ACs that are linked to E-RA
+      // (1.1) Check which AC has data + E-RA data
+      const linkedUnits = units.filter((ac) => ac.isEraLinked !== false);
+      console.log(
+        `Found ${linkedUnits.length} linked AC units out of ${units.length} total.`
       );
 
-      units.forEach((ac) => {
-        const baseline = baselines[ac.id];
-        const current = currentValues[ac.id];
+      // 2. Get current power consumption for each linked unit
+      const consumptionPromises = linkedUnits.map(async (ac) => {
+        try {
+          // (3) Get monthly baseline
+          const baseline = baselines[ac.id];
 
-        if (baseline !== undefined && current !== undefined) {
-          const consumption = Math.max(0, current - baseline);
+          // If baseline is not yet loaded, we can't calculate correctly, assume 0 or wait.
+          // But we'll treat undefined as 0 for safety, though it might spike.
+          // Better to skip if baseline is missing to avoid showing huge numbers (Current - 0).
+          if (baseline === undefined) {
+            console.warn(`No baseline found for AC ${ac.id}, skipping.`);
+            return 0;
+          }
+
+          // Get Current Value from E-RA
+          let currentVal = 0;
+
+          let configId = getPowerConsumptionConfigId();
+          if (!configId) configId = 101076; // Default fallback
+
+          // Fetch latest value (last 24 hours to ensure we catch it even if device is infrequent)
+          const now = new Date();
+          const past = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          const dateFrom = format(past, "yyyy-MM-dd'T'HH:mm:ss");
+          const dateTo = format(now, "yyyy-MM-dd'T'HH:mm:ss");
+
           console.log(
-            `AC ${ac.id} - Current: ${current}, Baseline: ${baseline}, Consumption: ${consumption}`
+            `Fetching history for AC ${ac.id} from ${dateFrom} to ${dateTo}`
           );
-          total += consumption;
+
+          const historyData = await getHistoryValueV3(
+            configId,
+            dateFrom,
+            dateTo
+          );
+
+          if (historyData && historyData.length > 0) {
+            // Sort by date descending to get latest
+            const sortedData = [...historyData].sort((a, b) => {
+              const dateA = new Date(a.created_at || a.x);
+              const dateB = new Date(b.created_at || b.x);
+              return dateB - dateA;
+            });
+
+            const lastItem = sortedData[0];
+            const val = parseFloat(
+              lastItem.val !== undefined ? lastItem.val : lastItem.y
+            );
+            if (!isNaN(val)) {
+              currentVal = val;
+              console.log(
+                `Fetched latest value for AC ${ac.id}: ${currentVal}`
+              );
+            }
+          } else {
+            console.warn(
+              `No history data found for AC ${ac.id} in the last 24 hours.`
+            );
+          }
+
+          // (4) Calculate Monthly for this AC
+          // If currentVal is 0 (and baseline is not), it means we failed to get a valid current reading.
+          // In this case, we shouldn't calculate a negative or zero consumption if it's actually higher.
+          // However, for now, we'll stick to the formula but log it.
+
+          const monthlyConsumption = Math.max(0, currentVal - baseline);
+          console.log(
+            `AC ${ac.name} (${ac.id}): Current=${currentVal}, Baseline=${baseline}, Monthly=${monthlyConsumption}`
+          );
+
+          return monthlyConsumption;
+        } catch (error) {
+          console.error(
+            `Error calculating consumption for AC ${ac.id}:`,
+            error
+          );
+          return 0;
         }
       });
+
+      const results = await Promise.all(consumptionPromises);
+
+      // (5) Sum total
+      total = results.reduce((acc, curr) => acc + curr, 0);
 
       console.log("Total Monthly Consumption:", total);
       setTotalKwh(total);
     };
 
-    // Run immediately
-    calculateMonthlyConsumption();
+    if (acUnits.length > 0) {
+      calculateMonthlyConsumption();
+    }
 
-    // Update every 5 minutes
-    const interval = setInterval(calculateMonthlyConsumption, 5 * 60 * 1000);
+    // Update every 1 minute
+    const interval = setInterval(calculateMonthlyConsumption, 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [baselines]); // Re-setup if baselines change
+  }, [acUnits, baselines]);
 
   if (loading) {
     return (
