@@ -240,7 +240,7 @@ export const addElectricityBill = async (billData) => {
     month: billData.month, // "yyyy-MM" format
     kwh: billData.kwh,
     amount: billData.amount, // VND
-    isBefore: billData.isBefore || true, // true = before solution, false = after
+    isBefore: billData.isBefore !== undefined ? billData.isBefore : true, // true = before solution, false = after
     createdAt: Date.now(),
   };
 
@@ -324,41 +324,6 @@ export const calculateSavings = (beforeKwh, afterKwh, pricePerKwh = 3000) => {
   };
 };
 
-// ============ MONTHLY KWH CALCULATION FOR CURRENT MONTH ============
-
-export const getCurrentMonthKwh = async (acId) => {
-  const now = new Date();
-  const monthKey = format(now, "yyyy-MM");
-  const startDate = startOfMonth(now);
-
-  let totalKwh = 0;
-
-  // Get all daily consumptions for current month
-  const snapshot = await get(ref(database, `daily_consumption/${acId}`));
-  if (snapshot.exists()) {
-    const dailyData = snapshot.val();
-    Object.keys(dailyData).forEach((dateKey) => {
-      if (dateKey.startsWith(monthKey)) {
-        totalKwh += dailyData[dateKey].totalKwh || 0;
-      }
-    });
-  }
-
-  return totalKwh;
-};
-
-// Subscribe to daily consumption for real-time updates
-export const subscribeToDailyConsumption = (acId, callback) => {
-  const consumptionRef = ref(database, `daily_consumption/${acId}`);
-  return onValue(consumptionRef, (snapshot) => {
-    if (snapshot.exists()) {
-      callback(snapshot.val());
-    } else {
-      callback({});
-    }
-  });
-};
-
 // ============ TEMPERATURE LOGS ============
 
 export const logTemperatureChange = async (
@@ -410,4 +375,20 @@ export const getTemperatureLogs = async (acId, period = "day") => {
   return logs
     .filter((log) => log.timestamp >= startTime)
     .sort((a, b) => b.timestamp - a.timestamp);
+};
+
+// ============ DAILY POWER CONSUMPTION BASELINE ============
+
+export const saveDailyBaseline = async (acId, dateStr, value) => {
+  const refPath = `daily_powerConsumption/${acId}/${dateStr}`;
+  await set(ref(database, refPath), value);
+};
+
+export const getDailyBaseline = async (acId, dateStr) => {
+  const refPath = `daily_powerConsumption/${acId}/${dateStr}`;
+  const snapshot = await get(ref(database, refPath));
+  if (snapshot.exists()) {
+    return snapshot.val();
+  }
+  return null;
 };

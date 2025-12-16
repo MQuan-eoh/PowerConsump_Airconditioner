@@ -1,19 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   subscribeToACUnit,
   updateACUnit,
-  getEnergyHistory,
-  subscribeToDailyConsumption,
-  getMonthlyConsumption,
-  getYearlyConsumption,
   logTemperatureChange,
+  saveDailyBaseline,
+  getDailyBaseline,
 } from "../services/firebaseService";
 import {
   getHistoryValueV3,
   getPowerConsumptionConfigId,
 } from "../services/eraService";
+import { format } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useEra } from "../contexts/EraContext";
@@ -21,6 +20,8 @@ import EnergyChart from "../components/EnergyChart";
 import WeatherPanel from "../components/WeatherPanel";
 import ACSettings from "../components/ACSettings";
 import TemperatureLogModal from "../components/TemperatureLogModal";
+import SensorCard from "../components/SensorCard";
+import { FaTemperatureHigh, FaBolt, FaPlug, FaLeaf } from "react-icons/fa";
 import { getTempColor } from "../utils/tempUtils";
 import "./ControlPanel.css";
 
@@ -55,6 +56,149 @@ const ControlPanel = () => {
   // Determine if this AC is linked to E-RA (default to true if undefined for legacy support)
   const isEraLinked = ac?.isEraLinked !== false;
 
+  // New Logic: Daily Baseline
+  const [dailyBaseline, setDailyBaseline] = useState(null);
+
+  // Real-time sensor history state
+  const [sensorHistory, setSensorHistory] = useState({
+    temp: [],
+    voltage: [],
+    current: [],
+    power: [],
+  });
+
+  // Update sensor history when eraValues changes
+  useEffect(() => {
+    if (!eraValues) return;
+
+    setSensorHistory((prev) => {
+      const MAX_POINTS = 20; // Keep last 20 data points
+
+      const updateChannel = (channelData, newValue) => {
+        // Only add valid numbers
+        if (newValue === null || newValue === undefined || isNaN(newValue)) {
+          // If we want to maintain the chart flow even with missing data, we could duplicate the last value
+          // or just return current state. Let's return current state to avoid flatlining with nulls if not intended.
+          // However, to make the chart "move" we might need regular updates.
+          // For now, let's only add if we have a value.
+          return channelData;
+        }
+
+        // Avoid adding duplicate values if the update is too fast and value hasn't changed?
+        // Actually, for a real-time chart, seeing a flat line is correct if value is constant.
+        // But we need to know if this useEffect triggers on time interval or value change.
+        // Assuming eraValues updates when data comes in.
+
+        const newData = [...channelData, { value: parseFloat(newValue) }];
+        return newData.slice(-MAX_POINTS);
+      };
+
+      return {
+        temp: updateChannel(prev.temp, eraValues.currentTemperature),
+        voltage: updateChannel(prev.voltage, eraValues.voltage),
+        current: updateChannel(prev.current, eraValues.current),
+        power: updateChannel(prev.power, eraValues.powerConsumption),
+      };
+    });
+  }, [eraValues]);
+
+  useEffect(() => {
+    const fetchBaseline = async () => {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const localStorageKey = `dailyBaseline_${acId}_${todayStr}`;
+
+      // 1. Check LocalStorage
+      const cachedBaseline = localStorage.getItem(localStorageKey);
+      if (cachedBaseline) {
+        console.log("Using cached baseline from LocalStorage:", cachedBaseline);
+        setDailyBaseline(parseFloat(cachedBaseline));
+        return;
+      }
+
+      // 2. Check Firebase
+      const firebaseBaseline = await getDailyBaseline(acId, todayStr);
+      if (firebaseBaseline !== null) {
+        console.log("Using baseline from Firebase:", firebaseBaseline);
+        localStorage.setItem(localStorageKey, firebaseBaseline);
+        setDailyBaseline(firebaseBaseline);
+        return;
+      }
+
+      // 3. Fetch from E-RA API (00:00 - 00:02)
+      let configId = getPowerConsumptionConfigId();
+      if (!configId) configId = 101076;
+
+      // Fetch from 00:00 to 00:02 to get the baseline
+      const dateFrom = `${todayStr}T00:00:00`;
+      const dateTo = `${todayStr}T00:02:00`;
+
+      console.log(
+        "Fetching baseline from E-RA (00:00 - 00:02):",
+        dateFrom,
+        "to",
+        dateTo
+      );
+      const historyData = await getHistoryValueV3(configId, dateFrom, dateTo);
+
+      if (historyData && historyData.length > 0) {
+        // Sort by date ascending to get the earliest record
+        const sortedData = [...historyData].sort((a, b) => {
+          const dateA = new Date(a.created_at || a.x);
+          const dateB = new Date(b.created_at || b.x);
+          return dateA - dateB;
+        });
+
+        // Get the first value (earliest in the day)
+        const firstItem = sortedData[0];
+        const val = parseFloat(
+          firstItem.val !== undefined ? firstItem.val : firstItem.y
+        );
+
+        if (!isNaN(val)) {
+          console.log(
+            "Fetched baseline from E-RA:",
+            val,
+            "at",
+            firstItem.created_at || firstItem.x
+          );
+
+          // Save to Firebase
+          try {
+            await saveDailyBaseline(acId, todayStr, val);
+            console.log("Saved baseline to Firebase successfully.");
+          } catch (err) {
+            console.error("Failed to save baseline to Firebase:", err);
+          }
+
+          // Save to LocalStorage
+          localStorage.setItem(localStorageKey, val);
+          setDailyBaseline(val);
+        } else {
+          console.warn("First item value is NaN:", firstItem);
+        }
+      } else {
+        console.warn("No history data found for today to establish baseline.");
+      }
+    };
+
+    if (acId) {
+      fetchBaseline();
+    }
+  }, [acId]);
+
+  // Calculate Daily Consumption based on Baseline and Current Value
+  useEffect(() => {
+    if (dailyBaseline !== null && eraValues?.powerConsumption) {
+      const currentKwh = parseFloat(eraValues.powerConsumption);
+      const dailyKwh = Math.max(0, currentKwh - dailyBaseline);
+
+      setStats((prev) => ({
+        ...prev,
+        daily: dailyKwh,
+      }));
+    }
+  }, [dailyBaseline, eraValues?.powerConsumption]);
+
   useEffect(() => {
     const unsubscribe = subscribeToACUnit(acId, (data) => {
       setAC(data);
@@ -64,32 +208,22 @@ const ControlPanel = () => {
     return () => unsubscribe();
   }, [acId]);
 
+  // Load Chart Data and Other Stats (Weekly, Monthly)
   useEffect(() => {
-    const loadEnergyData = async () => {
-      // Get Config ID
-      // Try to get from Era Service first, then fallback to hardcoded example if needed
+    const loadChartAndStats = async () => {
       let configId = getPowerConsumptionConfigId();
-      if (!configId) {
-        configId = 101076; // Fallback/Example ID as per requirements
-      }
+      if (!configId) configId = 101076;
 
-      // 1. Fetch data for the Chart (based on chartPeriod)
+      // 1. Load Chart Data
       const { date_from, date_to } = getDateRange(chartPeriod);
-      console.log(
-        `Fetching chart data for period: ${chartPeriod}, From: ${date_from}, To: ${date_to}`
-      );
-
       const historyData = await getHistoryValueV3(configId, date_from, date_to);
-      console.log("ControlPanel: Raw History Data:", historyData);
-
       const { chartData } = processConsumptionData(historyData, chartPeriod);
-      console.log("ControlPanel: Processed Chart Data:", chartData);
-
       setEnergyHistory(chartData);
 
-      // 2. Fetch data for Stats (Daily, Weekly, Monthly)
-      // Fetch all 3 to populate the stats cards correctly
-      const periods = ["day", "week", "month"];
+      // 2. Load Weekly and Monthly Stats
+      // We only need to do this once or when period changes, but doing it here is fine.
+      // Note: Daily stat is handled by the real-time effect above.
+      const periods = ["week", "month"];
       const statsPromises = periods.map(async (p) => {
         const range = getDateRange(p);
         const data = await getHistoryValueV3(
@@ -103,57 +237,15 @@ const ControlPanel = () => {
 
       const statsResults = await Promise.all(statsPromises);
 
-      const newStats = {
-        daily: statsResults.find((s) => s.period === "day")?.total || 0,
-        weekly: statsResults.find((s) => s.period === "week")?.total || 0,
-        monthly: statsResults.find((s) => s.period === "month")?.total || 0,
-        yearly: 0, // Not implemented yet
-      };
-
       setStats((prev) => ({
         ...prev,
-        ...newStats,
+        weekly: statsResults.find((s) => s.period === "week")?.total || 0,
+        monthly: statsResults.find((s) => s.period === "month")?.total || 0,
       }));
     };
 
-    loadEnergyData();
-  }, [acId, chartPeriod, isEraReady]); // Added isEraReady dependency to retry when Era is ready
-
-  useEffect(() => {
-    const unsubscribe = subscribeToDailyConsumption(acId, (data) => {
-      const today = new Date().toISOString().split("T")[0];
-      const todayKwh = data[today]?.totalKwh || 0;
-
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      let weeklyKwh = 0;
-
-      Object.keys(data).forEach((dateKey) => {
-        const date = new Date(dateKey);
-        if (date >= weekAgo) {
-          weeklyKwh += data[dateKey].totalKwh || 0;
-        }
-      });
-
-      setStats((prev) => ({
-        ...prev,
-        daily: todayKwh,
-        weekly: weeklyKwh,
-      }));
-    });
-
-    return () => unsubscribe();
-  }, [acId]);
-
-  // Cập nhật stats từ E-RA nếu có dữ liệu powerConsumption
-  useEffect(() => {
-    if (isEraReady && eraValues.powerConsumption && isEraLinked) {
-      setStats((prev) => ({
-        ...prev,
-        daily: eraValues.powerConsumption,
-      }));
-    }
-  }, [isEraReady, eraValues.powerConsumption, isEraLinked]);
+    loadChartAndStats();
+  }, [acId, chartPeriod]);
 
   // Sync online status with E-RA
   useEffect(() => {
@@ -345,45 +437,49 @@ const ControlPanel = () => {
         <div className="left-panel">
           {/* E-RA Real-time Sensor Data */}
           {isEraReady && isEraLinked && (
-            <div className="era-realtime glass-card">
-              <h3>Real-time Sensor Data (E-RA)</h3>
-              <div className="era-data-grid">
-                <div className="era-data-item">
-                  <span className="era-label">
-                    {t("currentTemp") || "Current Temp"}
-                  </span>
-                  <span className="era-value">
-                    {eraValues.currentTemperature !== null
-                      ? `${eraValues.currentTemperature}C`
-                      : "--"}
-                  </span>
-                </div>
-                <div className="era-data-item">
-                  <span className="era-label">{t("voltage") || "Voltage"}</span>
-                  <span className="era-value">
-                    {eraValues.voltage !== null
-                      ? `${eraValues.voltage}V`
-                      : "--"}
-                  </span>
-                </div>
-                <div className="era-data-item">
-                  <span className="era-label">{t("current") || "Current"}</span>
-                  <span className="era-value">
-                    {eraValues.current !== null
-                      ? `${eraValues.current}A`
-                      : "--"}
-                  </span>
-                </div>
-                <div className="era-data-item">
-                  <span className="era-label">
-                    {t("powerConsumption") || "Power"}
-                  </span>
-                  <span className="era-value">
-                    {eraValues.powerConsumption !== null
-                      ? `${eraValues.powerConsumption}kWh`
-                      : "--"}
-                  </span>
-                </div>
+            <div className="era-realtime-section">
+              <h3>Real-time Sensor Data</h3>
+              <div className="era-sensor-grid">
+                <SensorCard
+                  title={t("currentTemp") || "Current Temp"}
+                  value={
+                    eraValues.currentTemperature !== null
+                      ? eraValues.currentTemperature
+                      : "--"
+                  }
+                  unit="°C"
+                  icon={<FaTemperatureHigh />}
+                  color="#f97316" // Orange
+                  data={sensorHistory.temp}
+                />
+                <SensorCard
+                  title={t("voltage") || "Voltage"}
+                  value={eraValues.voltage !== null ? eraValues.voltage : "--"}
+                  unit="V"
+                  icon={<FaBolt />}
+                  color="#eab308" // Yellow
+                  data={sensorHistory.voltage}
+                />
+                <SensorCard
+                  title={t("current") || "Current"}
+                  value={eraValues.current !== null ? eraValues.current : "--"}
+                  unit="A"
+                  icon={<FaPlug />}
+                  color="#3b82f6" // Blue
+                  data={sensorHistory.current}
+                />
+                <SensorCard
+                  title={t("powerConsumption") || "Power Consumption"}
+                  value={
+                    eraValues.powerConsumption !== null
+                      ? eraValues.powerConsumption
+                      : "--"
+                  }
+                  unit="kWh"
+                  icon={<FaLeaf />}
+                  color="#22c55e" // Green
+                  data={sensorHistory.power}
+                />
               </div>
             </div>
           )}

@@ -536,8 +536,8 @@ export const cleanupEraWidget = () => {
  */
 export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
   try {
-    // Use full URL as requested
-    const url = `https://backend.eoh.io/api/chip_manager/configs/value_history_v3/?configs=${configId}&date_from=${encodeURIComponent(
+    // Use relative URL to leverage Vite proxy (avoids CORS issues)
+    const url = `/api/chip_manager/configs/value_history_v3/?configs=${configId}&date_from=${encodeURIComponent(
       dateFrom
     )}&date_to=${encodeURIComponent(dateTo)}`;
 
@@ -547,31 +547,37 @@ export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": "Token a159b7047b33aebfdb2e83f614c5049e5d760d6d",
+        Accept: "application/json",
+        Authorization: "Token a159b7047b33aebfdb2e83f614c5049e5d760d6d",
       },
     });
 
     // Check content type to ensure it is JSON
     const contentType = response.headers.get("content-type");
-    const isJsonResponse = contentType && contentType.includes("application/json");
+    const isJsonResponse =
+      contentType && contentType.includes("application/json");
 
     if (!isJsonResponse) {
       const text = await response.text();
       console.error(`EraService: Non-JSON response:`, {
         status: response.status,
         statusText: response.statusText,
-        body: text.substring(0, 200)
+        body: text.substring(0, 200),
       });
-      throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Server returned non-JSON response: ${response.status} ${response.statusText}`
+      );
     }
 
     if (!response.ok) {
       let errorMessage = `API call failed: ${response.status} ${response.statusText}`;
-      if (response.status === 401) errorMessage = "Unauthorized: Invalid or expired token";
-      else if (response.status === 403) errorMessage = "Forbidden: Access denied";
-      else if (response.status === 404) errorMessage = "Not Found: Resource not found";
-      
+      if (response.status === 401)
+        errorMessage = "Unauthorized: Invalid or expired token";
+      else if (response.status === 403)
+        errorMessage = "Forbidden: Access denied";
+      else if (response.status === 404)
+        errorMessage = "Not Found: Resource not found";
+
       console.error(errorMessage);
       throw new Error(errorMessage);
     }
@@ -579,9 +585,26 @@ export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
     const data = await response.json();
     console.log("EraService: History Data Received:", data);
 
-    // Extract history from the response structure: [{ id: ..., history: [...] }]
+    // Extract history from the response structure
+
+    // Case 0: Wrapped in object with configs property { configs: [{ id: ..., history: [...] }] }
+    if (
+      data.configs &&
+      Array.isArray(data.configs) &&
+      data.configs.length > 0
+    ) {
+      if (data.configs[0].history) return data.configs[0].history;
+      if (data.configs[0].tail) return data.configs[0].tail;
+    }
+
+    // Case 1: Wrapped structure [{ id: ..., history: [...] }]
     if (Array.isArray(data) && data.length > 0 && data[0].history) {
       return data[0].history;
+    }
+
+    // Case 2: Direct array of history items [{x:..., y:...}]
+    if (Array.isArray(data)) {
+      return data;
     }
 
     return [];

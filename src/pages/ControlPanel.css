@@ -81,18 +81,74 @@
   color: #ef4444;
 }
 
-/* E-RA Real-time Data Card */
+/* E-RA Real-time Data Section */
+.era-realtime-section {
+  margin-bottom: 24px;
+}
+
+.era-realtime-section h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.era-realtime-section h3::before {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 16px;
+  background: var(--accent-blue);
+  border-radius: 2px;
+}
+
+.era-sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 480px) {
+  .era-sensor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Legacy styles kept for reference or if needed elsewhere, but can be cleaned up */
 .era-realtime {
-  padding: 20px;
+  padding: 24px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .era-realtime h3 {
   font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 20px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.era-realtime h3::before {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 16px;
+  background: var(--accent-blue);
+  border-radius: 2px;
 }
 
 .era-data-grid {
@@ -104,23 +160,82 @@
 .era-data-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  background: var(--bg-glass-light);
-  border-radius: var(--radius-sm);
+  gap: 8px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.era-data-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .era-label {
   font-size: 11px;
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
 }
 
 .era-value {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+/* Specific styling for each metric */
+.era-data-item.item-temp .era-value {
+  color: #ff6b6b; /* Warm Red for Temp */
+  text-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+}
+
+.era-data-item.item-voltage .era-value {
+  color: #ffd93d; /* Yellow for Voltage */
+  text-shadow: 0 0 20px rgba(255, 217, 61, 0.3);
+}
+
+.era-data-item.item-current .era-value {
+  color: #4d96ff; /* Blue for Current */
+  text-shadow: 0 0 20px rgba(77, 150, 255, 0.3);
+}
+
+.era-data-item.item-power .era-value {
+  color: #6bcb77; /* Green for Power */
+  text-shadow: 0 0 20px rgba(107, 203, 119, 0.3);
+}
+
+/* Add subtle indicator bars */
+.era-data-item::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  opacity: 0.5;
+}
+
+.era-data-item.item-temp::after {
+  background: #ff6b6b;
+}
+.era-data-item.item-voltage::after {
+  background: #ffd93d;
+}
+.era-data-item.item-current::after {
+  background: #4d96ff;
+}
+.era-data-item.item-power::after {
+  background: #6bcb77;
 }
 
 .control-content {

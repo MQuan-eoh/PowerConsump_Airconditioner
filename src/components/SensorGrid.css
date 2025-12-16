@@ -1,0 +1,23 @@
+.sensor-section {
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.sensor-section-title {
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+@media (min-width: 768px) {
+  .sensor-grid {
+    grid-template-columns: repeat(3, 1fr); /* 3 columns like the image */
+  }
+}

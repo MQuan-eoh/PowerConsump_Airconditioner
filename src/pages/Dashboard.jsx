@@ -6,7 +6,6 @@ import {
   createACUnit,
   deleteACUnit,
   updateACUnit,
-  getCurrentMonthKwh,
 } from "../services/firebaseService";
 import { useLanguage } from "../contexts/LanguageContext";
 import ACCard from "../components/ACCard";
@@ -19,7 +18,6 @@ const Dashboard = () => {
   const [acUnits, setACUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [monthlyKwhData, setMonthlyKwhData] = useState({});
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -27,13 +25,6 @@ const Dashboard = () => {
     const unsubscribe = subscribeToACUnits(async (units) => {
       setACUnits(units);
       setLoading(false);
-
-      // Fetch monthly kWh for each AC unit
-      const kwhData = {};
-      for (const unit of units) {
-        kwhData[unit.id] = await getCurrentMonthKwh(unit.id);
-      }
-      setMonthlyKwhData(kwhData);
     });
 
     return () => unsubscribe();
@@ -56,10 +47,7 @@ const Dashboard = () => {
 
   const onlineCount = acUnits.filter((ac) => ac.isOnline).length;
   const offlineCount = acUnits.filter((ac) => !ac.isOnline).length;
-  const totalKwh = Object.values(monthlyKwhData).reduce(
-    (sum, kwh) => sum + kwh,
-    0
-  );
+  const totalKwh = 0; // TODO: Implement new total calculation logic
 
   if (loading) {
     return (
@@ -134,7 +122,7 @@ const Dashboard = () => {
             >
               <ACCard
                 ac={ac}
-                monthlyKwh={monthlyKwhData[ac.id] || 0}
+                monthlyKwh={0}
                 onClick={() => handleACClick(ac.id)}
                 onDelete={() => handleDeleteAC(ac.id)}
               />

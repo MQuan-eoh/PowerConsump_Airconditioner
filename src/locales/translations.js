@@ -148,6 +148,10 @@ export const translations = {
     noLogs: "No logs found",
     manualAdjustment: "Manual Adjustment",
     autoAdjustment: "Auto Adjustment",
+    currentTemp: "Current Temp",
+    voltage: "Voltage",
+    current: "Current",
+    powerConsumption: "Power Consumption",
   },
   vi: {
     // Dashboard
@@ -298,6 +302,10 @@ export const translations = {
     noLogs: "Không có nhật ký",
     manualAdjustment: "Điều chỉnh thủ công",
     autoAdjustment: "Điều chỉnh tự động",
+    currentTemp: "Current Temp",
+    voltage: "Voltage",
+    current: "Current",
+    powerConsumption: "Power Consumption",
   },
 };
 

@@ -105,10 +105,21 @@ export const processConsumptionData = (data, period) => {
   });
 
   const chartData = Object.values(groupedData)
-    .map((group) => ({
-      date: group.date,
-      kwh: group.max - group.min,
-    }))
+    .map((group) => {
+      let kwh;
+      if (period === "day") {
+        // Cumulative consumption from start of day: Current Max - Start Value (00:00)
+        kwh = group.max - firstValue;
+      } else {
+        // Consumption within the period (e.g. per day): Max - Min
+        kwh = group.max - group.min;
+      }
+
+      return {
+        date: group.date,
+        kwh: Math.max(0, kwh),
+      };
+    })
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   return { total, chartData };
