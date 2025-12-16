@@ -290,6 +290,9 @@ const ControlPanel = () => {
 
       if (monthlyBaseline !== null) {
         const monthlyKwh = Math.max(0, currentKwh - monthlyBaseline);
+        console.log(
+          `Calculating monthly consumption: Current=${currentKwh}, Baseline=${monthlyBaseline}, Result=${monthlyKwh}`
+        );
         setStats((prev) => ({
           ...prev,
           monthly: monthlyKwh,
@@ -319,10 +322,10 @@ const ControlPanel = () => {
       const { chartData } = processConsumptionData(historyData, chartPeriod);
       setEnergyHistory(chartData);
 
-      // 2. Load Weekly and Monthly Stats
+      // 2. Load Weekly Stats (Monthly is handled by baseline calculation)
       // We only need to do this once or when period changes, but doing it here is fine.
-      // Note: Daily stat is handled by the real-time effect above.
-      const periods = ["week", "month"];
+      // Note: Daily and Monthly stats are handled by the real-time effect above.
+      const periods = ["week"];
       const statsPromises = periods.map(async (p) => {
         const range = getDateRange(p);
         const data = await getHistoryValueV3(
@@ -339,7 +342,7 @@ const ControlPanel = () => {
       setStats((prev) => ({
         ...prev,
         weekly: statsResults.find((s) => s.period === "week")?.total || 0,
-        monthly: statsResults.find((s) => s.period === "month")?.total || 0,
+        // monthly is calculated via baseline subtraction in another useEffect
       }));
     };
 
