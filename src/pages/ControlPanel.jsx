@@ -12,7 +12,7 @@ import {
   getHistoryValueV3,
   getPowerConsumptionConfigId,
 } from "../services/eraService";
-import { format } from "date-fns";
+import { format, startOfMonth } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useEra } from "../contexts/EraContext";
@@ -58,6 +58,7 @@ const ControlPanel = () => {
 
   // New Logic: Daily Baseline
   const [dailyBaseline, setDailyBaseline] = useState(null);
+  const [monthlyBaseline, setMonthlyBaseline] = useState(null);
 
   // Real-time sensor history state
   const [sensorHistory, setSensorHistory] = useState({
@@ -99,6 +100,11 @@ const ControlPanel = () => {
         current: updateChannel(prev.current, eraValues.current),
         power: updateChannel(prev.power, eraValues.powerConsumption),
       };
+      console.log("=====================");
+      console.log(
+        "Updated Power Consumption Values:",
+        eraValues.powerConsumption
+      );
     });
   }, [eraValues]);
 
@@ -186,18 +192,111 @@ const ControlPanel = () => {
     }
   }, [acId]);
 
-  // Calculate Daily Consumption based on Baseline and Current Value
+  // Fetch Monthly Baseline
   useEffect(() => {
-    if (dailyBaseline !== null && eraValues?.powerConsumption) {
-      const currentKwh = parseFloat(eraValues.powerConsumption);
-      const dailyKwh = Math.max(0, currentKwh - dailyBaseline);
+    const fetchMonthlyBaseline = async () => {
+      const now = new Date();
+      const firstDayOfMonth = format(startOfMonth(now), "yyyy-MM-dd");
+      const localStorageKey = `monthlyBaseline_${acId}_${firstDayOfMonth}`;
 
-      setStats((prev) => ({
-        ...prev,
-        daily: dailyKwh,
-      }));
+      // 1. Check LocalStorage
+      const cachedBaseline = localStorage.getItem(localStorageKey);
+      if (cachedBaseline) {
+        console.log(
+          "Using cached monthly baseline from LocalStorage:",
+          cachedBaseline
+        );
+        setMonthlyBaseline(parseFloat(cachedBaseline));
+        return;
+      }
+
+      // 2. Check Firebase
+      let val = await getDailyBaseline(acId, firstDayOfMonth);
+
+      // If not in Firebase, fetch from E-RA
+      if (val === null) {
+        console.log(
+          `Monthly baseline for ${acId} not found in Firebase. Fetching from E-RA...`
+        );
+
+        let configId = getPowerConsumptionConfigId();
+        if (!configId) configId = 101076; // Default fallback
+
+        // Fetch from 00:00 to 00:02 of the first day of the month
+        const dateFrom = `${firstDayOfMonth}T00:00:00`;
+        const dateTo = `${firstDayOfMonth}T00:02:00`;
+
+        try {
+          const historyData = await getHistoryValueV3(
+            configId,
+            dateFrom,
+            dateTo
+          );
+
+          if (historyData && historyData.length > 0) {
+            // Sort by date ascending to get the earliest record
+            const sortedData = [...historyData].sort((a, b) => {
+              const dateA = new Date(a.created_at || a.x);
+              const dateB = new Date(b.created_at || b.x);
+              return dateA - dateB;
+            });
+
+            const firstItem = sortedData[0];
+            const eraVal = parseFloat(
+              firstItem.val !== undefined ? firstItem.val : firstItem.y
+            );
+
+            if (!isNaN(eraVal)) {
+              console.log(`Fetched monthly baseline from E-RA: ${eraVal}`);
+              val = eraVal;
+
+              // Save to Firebase for next time
+              await saveDailyBaseline(acId, firstDayOfMonth, val);
+              console.log("Saved monthly baseline to Firebase.");
+            }
+          } else {
+            console.warn("No history data found in E-RA for start of month.");
+          }
+        } catch (eraError) {
+          console.error("Error fetching monthly baseline from E-RA:", eraError);
+        }
+      }
+
+      if (val !== null) {
+        console.log("Using monthly baseline:", val);
+        localStorage.setItem(localStorageKey, val);
+        setMonthlyBaseline(val);
+        return;
+      }
+    };
+
+    if (acId) {
+      fetchMonthlyBaseline();
     }
-  }, [dailyBaseline, eraValues?.powerConsumption]);
+  }, [acId]);
+
+  // Calculate Daily and Monthly Consumption based on Baseline and Current Value
+  useEffect(() => {
+    if (eraValues?.powerConsumption) {
+      const currentKwh = parseFloat(eraValues.powerConsumption);
+
+      if (dailyBaseline !== null) {
+        const dailyKwh = Math.max(0, currentKwh - dailyBaseline);
+        setStats((prev) => ({
+          ...prev,
+          daily: dailyKwh,
+        }));
+      }
+
+      if (monthlyBaseline !== null) {
+        const monthlyKwh = Math.max(0, currentKwh - monthlyBaseline);
+        setStats((prev) => ({
+          ...prev,
+          monthly: monthlyKwh,
+        }));
+      }
+    }
+  }, [dailyBaseline, monthlyBaseline, eraValues?.powerConsumption]);
 
   useEffect(() => {
     const unsubscribe = subscribeToACUnit(acId, (data) => {
