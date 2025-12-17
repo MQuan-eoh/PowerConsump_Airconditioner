@@ -6,13 +6,15 @@ import {
   updateACUnit,
   logTemperatureChange,
   saveDailyBaseline,
+  saveDailyEndValue,
   getDailyBaseline,
+  getDailyPowerData,
 } from "../services/firebaseService";
 import {
   getHistoryValueV3,
   getPowerConsumptionConfigId,
 } from "../services/eraService";
-import { format, startOfMonth } from "date-fns";
+import { format, startOfMonth, startOfWeek, addDays } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useEra } from "../contexts/EraContext";
@@ -275,6 +277,27 @@ const ControlPanel = () => {
     }
   }, [acId]);
 
+  // Save Daily End Value (Debounced)
+  useEffect(() => {
+    if (!eraValues?.powerConsumption || !acId) return;
+
+    const saveEndValue = async () => {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      try {
+        await saveDailyEndValue(
+          acId,
+          todayStr,
+          parseFloat(eraValues.powerConsumption)
+        );
+      } catch (err) {
+        console.error("Failed to save daily end value:", err);
+      }
+    };
+
+    const timer = setTimeout(saveEndValue, 5000); // Debounce 5s
+    return () => clearTimeout(timer);
+  }, [eraValues?.powerConsumption, acId]);
+
   // Calculate Daily and Monthly Consumption based on Baseline and Current Value
   useEffect(() => {
     if (eraValues?.powerConsumption) {
@@ -317,9 +340,50 @@ const ControlPanel = () => {
       if (!configId) configId = 101076;
 
       // 1. Load Chart Data
-      const { date_from, date_to } = getDateRange(chartPeriod);
-      const historyData = await getHistoryValueV3(configId, date_from, date_to);
-      const { chartData } = processConsumptionData(historyData, chartPeriod);
+      let chartData = [];
+
+      if (chartPeriod === "week") {
+        // Use Firebase Daily Data for Week View
+        const days = [];
+        const start = startOfWeek(new Date(), { weekStartsOn: 1 });
+        for (let i = 0; i < 7; i++) {
+          days.push(format(addDays(start, i), "yyyy-MM-dd"));
+        }
+
+        const promises = days.map(async (dateStr) => {
+          const data = await getDailyPowerData(acId, dateStr);
+          let kwh = 0;
+
+          if (data && data.beginPW !== undefined) {
+            if (data.endPW) {
+              kwh = data.endPW - data.beginPW;
+            } else if (
+              dateStr === format(new Date(), "yyyy-MM-dd") &&
+              eraValues?.powerConsumption
+            ) {
+              // Today: use current value if endPW not set
+              kwh = parseFloat(eraValues.powerConsumption) - data.beginPW;
+            }
+          }
+
+          return {
+            date: dateStr,
+            kwh: Math.max(0, kwh),
+          };
+        });
+
+        chartData = await Promise.all(promises);
+      } else {
+        const { date_from, date_to } = getDateRange(chartPeriod);
+        const historyData = await getHistoryValueV3(
+          configId,
+          date_from,
+          date_to
+        );
+        const result = processConsumptionData(historyData, chartPeriod);
+        chartData = result.chartData;
+      }
+
       setEnergyHistory(chartData);
 
       // 2. Load Weekly Stats (Monthly is handled by baseline calculation)
@@ -348,6 +412,31 @@ const ControlPanel = () => {
 
     loadChartAndStats();
   }, [acId, chartPeriod]);
+
+  // Update Today's value in Chart when in Week mode
+  useEffect(() => {
+    if (
+      chartPeriod === "week" &&
+      energyHistory.length > 0 &&
+      eraValues?.powerConsumption &&
+      dailyBaseline !== null
+    ) {
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const currentKwh = Math.max(
+        0,
+        parseFloat(eraValues.powerConsumption) - dailyBaseline
+      );
+
+      setEnergyHistory((prev) =>
+        prev.map((item) => {
+          if (item.date === todayStr) {
+            return { ...item, kwh: currentKwh };
+          }
+          return item;
+        })
+      );
+    }
+  }, [eraValues?.powerConsumption, chartPeriod, dailyBaseline]);
 
   // Sync online status with E-RA
   useEffect(() => {

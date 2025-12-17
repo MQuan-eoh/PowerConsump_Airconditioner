@@ -381,14 +381,55 @@ export const getTemperatureLogs = async (acId, period = "day") => {
 
 export const saveDailyBaseline = async (acId, dateStr, value) => {
   const refPath = `daily_powerConsumption/${acId}/${dateStr}`;
-  await set(ref(database, refPath), value);
+  const snapshot = await get(ref(database, refPath));
+
+  if (snapshot.exists() && typeof snapshot.val() === "number") {
+    // Migrate legacy number to object
+    await set(ref(database, refPath), { beginPW: value });
+  } else {
+    // Update existing object or create new
+    await update(ref(database, refPath), { beginPW: value });
+  }
+};
+
+export const saveDailyEndValue = async (acId, dateStr, value) => {
+  const refPath = `daily_powerConsumption/${acId}/${dateStr}`;
+  const snapshot = await get(ref(database, refPath));
+
+  if (snapshot.exists() && typeof snapshot.val() === "number") {
+    // Migrate legacy number to object, assuming existing value is beginPW
+    await set(ref(database, refPath), {
+      beginPW: snapshot.val(),
+      endPW: value,
+    });
+  } else {
+    // Update existing object or create new
+    await update(ref(database, refPath), { endPW: value });
+  }
 };
 
 export const getDailyBaseline = async (acId, dateStr) => {
   const refPath = `daily_powerConsumption/${acId}/${dateStr}`;
   const snapshot = await get(ref(database, refPath));
   if (snapshot.exists()) {
-    return snapshot.val();
+    const val = snapshot.val();
+    if (typeof val === "object") {
+      return val.beginPW;
+    }
+    return val;
+  }
+  return null;
+};
+
+export const getDailyPowerData = async (acId, dateStr) => {
+  const refPath = `daily_powerConsumption/${acId}/${dateStr}`;
+  const snapshot = await get(ref(database, refPath));
+  if (snapshot.exists()) {
+    const val = snapshot.val();
+    if (typeof val === "number") {
+      return { beginPW: val, endPW: null };
+    }
+    return val; // { beginPW, endPW }
   }
   return null;
 };
