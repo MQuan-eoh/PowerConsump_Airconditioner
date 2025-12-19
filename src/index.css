@@ -165,6 +165,8 @@ body::before {
 .input-field {
   padding: 12px 16px;
   background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-md);
   color: var(--text-primary);
@@ -190,6 +192,12 @@ select.input-field {
   background-position: right 12px center;
   background-size: 16px;
   padding-right: 40px;
+}
+
+select.input-field option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
 }
 
 .status-online {

@@ -1,0 +1,167 @@
+.ai-overlay-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(10, 5, 20, 0.7);
+  /* --webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px); */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.ai-activation-card {
+  background: linear-gradient(145deg, #2a1b3d 0%, #1a1025 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 24px;
+  padding: 40px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(139, 92, 246, 0.2);
+  position: relative;
+  overflow: hidden;
+  min-width: 320px;
+}
+
+/* Glow effect behind the card */
+.ai-activation-card::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle,
+    rgba(139, 92, 246, 0.15) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+.ai-icon-container {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.icon-circle {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 10px 20px rgba(109, 40, 217, 0.4);
+  position: relative;
+  z-index: 2;
+}
+
+.main-icon {
+  font-size: 40px;
+  color: white;
+}
+
+.check-badge {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  background: #10b981;
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 3px solid #1a1025;
+  font-size: 14px;
+}
+
+/* Pulse Rings */
+.pulse-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid rgba(139, 92, 246, 0.5);
+  animation: pulse 2s infinite;
+}
+
+.pulse-ring.delay {
+  animation-delay: 0.5s;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.text-content {
+  text-align: center;
+  z-index: 2;
+}
+
+.ai-title {
+  color: white;
+  font-size: 24px;
+  margin: 0 0 8px 0;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.highlight {
+  color: #a78bfa;
+  text-shadow: 0 0 10px rgba(167, 139, 250, 0.5);
+}
+
+.ai-subtitle {
+  color: #d1d5db;
+  font-size: 16px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.magic-icon {
+  color: #f472b6;
+}
+
+/* Particles */
+.ai-particles {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: #f472b6;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #f472b6;
+}

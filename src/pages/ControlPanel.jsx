@@ -23,8 +23,18 @@ import WeatherPanel from "../components/WeatherPanel";
 import ACSettings from "../components/ACSettings";
 import TemperatureLogModal from "../components/TemperatureLogModal";
 import SensorCard from "../components/SensorCard";
-import { FaTemperatureHigh, FaBolt, FaPlug, FaLeaf } from "react-icons/fa";
+import {
+  FaTemperatureHigh,
+  FaBolt,
+  FaPlug,
+  FaLeaf,
+  FaRobot,
+  FaDownload,
+} from "react-icons/fa";
 import { getTempColor } from "../utils/tempUtils";
+import { useAIControl } from "../hooks/useAIControl";
+import { downloadLogs, logAIAction } from "../services/aiLogService";
+import AIActivationOverlay from "../components/AIActivationOverlay";
 import "./ControlPanel.css";
 
 const ControlPanel = () => {
@@ -43,11 +53,16 @@ const ControlPanel = () => {
   } = useEra();
 
   const [ac, setAC] = useState(null);
+
+  // AI Control Hook
+  useAIControl(ac, eraValues, setEraTemperature, setEraFanSpeed, setEraMode);
+
   const [loading, setLoading] = useState(true);
-  const [chartPeriod, setChartPeriod] = useState("day");
   const [energyHistory, setEnergyHistory] = useState([]);
+  const [chartPeriod, setChartPeriod] = useState("day");
   const [showSettings, setShowSettings] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  const [showAIActivation, setShowAIActivation] = useState(false);
   const [stats, setStats] = useState({
     daily: 0,
     weekly: 0,
@@ -474,7 +489,25 @@ const ControlPanel = () => {
         await updateACUnit(acId, { temperature: newTemp });
 
         // Log the change
-        await logTemperatureChange(acId, oldTemp, newTemp, "user");
+        const isAIMode = ac.operationMode === "ai";
+        const source = isAIMode ? "user_override_ai" : "user";
+
+        await logTemperatureChange(acId, oldTemp, newTemp, source);
+
+        // Log to AI Logs if in AI Mode
+        if (isAIMode) {
+          logAIAction({
+            action: "USER_OVERRIDE",
+            details: `User manually adjusted temperature`,
+            oldTemp,
+            newTemp,
+            delta,
+            reason: "User preference override",
+            temp: newTemp,
+            fan: ac.fanMode,
+            mode: ac.operationMode,
+          });
+        }
       }
     }
   };
@@ -506,6 +539,12 @@ const ControlPanel = () => {
       if (isEraReady && isEraLinked) {
         const eraMode = mode === "ai" ? "auto" : "cool";
         setEraMode(eraMode);
+      }
+
+      // Show AI Activation Overlay if switching to AI mode
+      if (mode === "ai") {
+        setShowAIActivation(true);
+        setTimeout(() => setShowAIActivation(false), 3000);
       }
 
       // Cập nhật Firebase để sync state
@@ -540,6 +579,7 @@ const ControlPanel = () => {
 
   return (
     <div className="control-panel">
+      <AIActivationOverlay isVisible={showAIActivation} />
       <header className="control-header">
         <button className="back-btn" onClick={() => navigate("/")}>
           <svg
@@ -616,11 +656,17 @@ const ControlPanel = () => {
           >
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-            <polyline points="10 9 9 9 8 9"></polyline>
           </svg>
           {t("tempLog")}
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={downloadLogs}
+          style={{ marginLeft: "10px" }}
+          title="Download AI Training Logs"
+        >
+          <FaDownload style={{ marginRight: "5px" }} />
+          AI Logs
         </button>
       </header>
 

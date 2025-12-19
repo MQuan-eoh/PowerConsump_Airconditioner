@@ -307,6 +307,8 @@ const TemperatureLogModal = ({ isOpen, onClose, acId }) => {
                             <td>
                               {log.source === "user"
                                 ? t("manualAdjustment")
+                                : log.source === "user_override_ai"
+                                ? t("userOverrideAI")
                                 : t("autoAdjustment")}
                             </td>
                           </tr>
