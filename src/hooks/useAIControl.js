@@ -22,10 +22,35 @@ export const useAIControl = (
   const lastActionTimeRef = useRef(null);
   const lastProposedSettingsRef = useRef(null);
   const monitoringIntervalRef = useRef(null);
+  const prevModeRef = useRef(null);
 
   // Check if AI mode is enabled
   useEffect(() => {
     setIsAIActive(ac?.operationMode === "ai");
+  }, [ac?.operationMode]);
+
+  // Handle Page Load vs Mode Switch Logic
+  useEffect(() => {
+    const currentMode = ac?.operationMode;
+
+    if (currentMode === "ai") {
+      // If switching to AI, or loading with AI
+      if (prevModeRef.current !== "ai") {
+        // Transitioned to AI.
+        if (prevModeRef.current === undefined || prevModeRef.current === null) {
+          // Was null/undefined -> AI. This is Page Load.
+          // Suppress immediate action by setting lastActionTime to now
+          console.log("[AI Mode] Suppressing immediate action on page load");
+          lastActionTimeRef.current = Date.now();
+        } else {
+          // Was Manual -> AI. This is User Activation.
+          // Allow immediate action (reset timer if needed, or leave as is)
+          // If we want to force immediate action, we could set lastActionTimeRef.current = null;
+          // But usually it is null by default or old.
+        }
+      }
+    }
+    prevModeRef.current = currentMode;
   }, [ac?.operationMode]);
 
   // Main AI Loop
