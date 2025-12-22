@@ -75,8 +75,19 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const CustomLabel = (props) => {
-  const { x, y, width, value } = props;
+  const { x, y, width, value, index, data, period } = props;
   if (value === 0) return null;
+
+  let fill = "var(--accent-yellow)";
+
+  if (period === "week" && index > 0 && data) {
+    const prevValue = data[index - 1].kwh;
+    if (value > prevValue) {
+      fill = "var(--accent-red)";
+    } else if (value < prevValue) {
+      fill = "var(--accent-green)";
+    }
+  }
 
   return (
     <g>
@@ -84,7 +95,7 @@ const CustomLabel = (props) => {
         points={`${x + width / 2},${y - 30} ${x + width / 2 - 8},${y - 15} ${
           x + width / 2 + 8
         },${y - 15}`}
-        fill="var(--accent-yellow)"
+        fill={fill}
       />
       <text
         x={x + width / 2}
@@ -164,7 +175,10 @@ const EnergyChart = ({ data, period }) => {
             isAnimationActive={true}
             animationDuration={1000}
           >
-            <LabelList dataKey="kwh" content={<CustomLabel />} />
+            <LabelList
+              dataKey="kwh"
+              content={<CustomLabel data={formattedData} period={period} />}
+            />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
