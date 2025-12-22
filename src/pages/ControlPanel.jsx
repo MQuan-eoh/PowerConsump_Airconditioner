@@ -14,7 +14,7 @@ import {
   getHistoryValueV3,
   getPowerConsumptionConfigId,
 } from "../services/eraService";
-import { format, startOfMonth, startOfWeek, addDays } from "date-fns";
+import { format, startOfMonth, startOfWeek, addDays, parseISO } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useEra } from "../contexts/EraContext";
@@ -33,7 +33,11 @@ import {
 } from "react-icons/fa";
 import { getTempColor } from "../utils/tempUtils";
 import { useAIControl } from "../hooks/useAIControl";
-import { downloadLogs, logAIAction } from "../services/aiLogService";
+import {
+  downloadLogs,
+  logAIAction,
+  getLearnedUserPreference,
+} from "../services/aiLogService";
 import AIActivationOverlay from "../components/AIActivationOverlay";
 import "./ControlPanel.css";
 
@@ -60,6 +64,7 @@ const ControlPanel = () => {
   const [loading, setLoading] = useState(true);
   const [energyHistory, setEnergyHistory] = useState([]);
   const [chartPeriod, setChartPeriod] = useState("day");
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [showSettings, setShowSettings] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showAIActivation, setShowAIActivation] = useState(false);
@@ -360,7 +365,7 @@ const ControlPanel = () => {
       if (chartPeriod === "week") {
         // Use Firebase Daily Data for Week View
         const days = [];
-        const start = startOfWeek(new Date(), { weekStartsOn: 1 });
+        const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
         for (let i = 0; i < 7; i++) {
           days.push(format(addDays(start, i), "yyyy-MM-dd"));
         }
@@ -389,13 +394,16 @@ const ControlPanel = () => {
 
         chartData = await Promise.all(promises);
       } else {
-        const { date_from, date_to } = getDateRange(chartPeriod);
+        const { date_from, date_to } = getDateRange(chartPeriod, selectedDate);
         const historyData = await getHistoryValueV3(
           configId,
           date_from,
           date_to
         );
-        const result = processConsumptionData(historyData, chartPeriod);
+        const result = processConsumptionData(historyData, chartPeriod, {
+          date_from,
+          date_to,
+        });
         chartData = result.chartData;
       }
 
@@ -426,7 +434,7 @@ const ControlPanel = () => {
     };
 
     loadChartAndStats();
-  }, [acId, chartPeriod]);
+  }, [acId, chartPeriod, selectedDate]);
 
   // Update Today's value in Chart when in Week mode
   useEffect(() => {
@@ -676,6 +684,31 @@ const ControlPanel = () => {
           {isEraReady && isEraLinked && (
             <div className="era-realtime-section">
               <h3>Real-time Sensor Data</h3>
+              {ac.operationMode === "ai" && (
+                <div
+                  className="ai-learning-status"
+                  style={{
+                    marginBottom: "15px",
+                    padding: "10px",
+                    background: "rgba(34, 197, 94, 0.1)",
+                    border: "1px solid rgba(34, 197, 94, 0.3)",
+                    borderRadius: "8px",
+                    color: "#22c55e",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <FaRobot />
+                  <span>
+                    AI Learned Preference:{" "}
+                    <strong>
+                      {getLearnedUserPreference() > 0 ? "+" : ""}
+                      {getLearnedUserPreference()}°C
+                    </strong>
+                  </span>
+                </div>
+              )}
               <div className="era-sensor-grid">
                 <SensorCard
                   title={t("currentTemp") || "Current Temp"}
@@ -901,22 +934,58 @@ const ControlPanel = () => {
           <div className="energy-chart-container glass-card">
             <div className="chart-header">
               <h3>{t("energyChart")}</h3>
-              <div className="chart-period-selector">
-                {["day", "week", "month"].map((period) => (
-                  <button
-                    key={period}
-                    className={`period-btn ${
-                      chartPeriod === period ? "active" : ""
-                    }`}
-                    onClick={() => setChartPeriod(period)}
-                  >
-                    {period === "day"
-                      ? t("day")
-                      : period === "week"
-                      ? t("week")
-                      : t("month")}
-                  </button>
-                ))}
+              <div
+                className="chart-controls"
+                style={{ display: "flex", gap: "10px", alignItems: "center" }}
+              >
+                {chartPeriod === "week" && (
+                  <input
+                    type="date"
+                    className="date-picker"
+                    value={format(selectedDate, "yyyy-MM-dd")}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const newDate = parseISO(e.target.value);
+                        setSelectedDate(newDate);
+                      }
+                    }}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      background: "rgba(255, 255, 255, 0.05)",
+                      color: "var(--text-primary)",
+                      outline: "none",
+                      cursor: "pointer",
+                    }}
+                  />
+                )}
+                <div className="chart-period-selector">
+                  {["day", "week", "month"].map((period) => (
+                    <button
+                      key={period}
+                      className={`period-btn ${
+                        chartPeriod === period ? "active" : ""
+                      }`}
+                      onClick={() => {
+                        setChartPeriod(period);
+                        // Reset date to today when switching periods if needed,
+                        // or keep it. Let's keep it for now or reset?
+                        // User might want to see "Day" for the selected date too.
+                        // But for now, let's just enable it for Week as requested.
+                        if (period === "week" && !selectedDate) {
+                          setSelectedDate(new Date());
+                        }
+                      }}
+                    >
+                      {period === "day"
+                        ? t("day")
+                        : period === "week"
+                        ? t("week")
+                        : t("month")}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <EnergyChart data={energyHistory} period={chartPeriod} />

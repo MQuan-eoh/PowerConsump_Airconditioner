@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { calculateOptimalSettings } from "../utils/aiLogic";
-import { logAIAction, logReward } from "../services/aiLogService";
+import {
+  logAIAction,
+  logReward,
+  getLearnedUserPreference,
+} from "../services/aiLogService";
 import { updateACUnit } from "../services/firebaseService";
 
 /**
@@ -72,12 +76,16 @@ export const useAIControl = (
       const roomArea = ac.roomArea || 20;
       const acType = ac.acType || "inverter";
 
+      // 1.5 Get Learned User Preference
+      const userOffset = getLearnedUserPreference();
+
       // 2. Calculate Optimal Settings
       const optimal = calculateOptimalSettings({
         currentTemp,
         currentHumidity,
         roomArea,
         acType,
+        userOffset,
         // weather: { temp: 32 } // TODO: Integrate real weather API
       });
 

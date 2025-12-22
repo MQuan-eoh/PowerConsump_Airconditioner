@@ -27,6 +27,40 @@ export const logReward = (reward, reason) => {
   saveLog(newLog);
 };
 
+export const getLearnedUserPreference = () => {
+  const logs = getLogs();
+  // Filter for USER_OVERRIDE actions in the last 7 days
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+  const overrides = logs.filter(
+    (log) =>
+      log.type === "ACTION" &&
+      log.action === "USER_OVERRIDE" &&
+      new Date(log.timestamp) > oneWeekAgo
+  );
+
+  if (overrides.length === 0) return 0;
+
+  // Calculate average deviation from 26 (base temp)
+  // Or better: Calculate the average of the 'newTemp' set by user
+  // But 'newTemp' depends on context.
+  // Let's use the average of (newTemp - 26).
+  // If user sets 24, diff is -2. If user sets 28, diff is +2.
+
+  const totalDiff = overrides.reduce((sum, log) => {
+    // Assuming base temp is roughly 26.
+    // We want to know "How much does the user deviate from standard?"
+    // log.newTemp is the value user chose.
+    return sum + (log.newTemp - 26);
+  }, 0);
+
+  const avgDiff = totalDiff / overrides.length;
+
+  // Round to nearest 0.5
+  return Math.round(avgDiff * 2) / 2;
+};
+
 const getLogs = () => {
   try {
     const stored = localStorage.getItem(LOG_KEY);

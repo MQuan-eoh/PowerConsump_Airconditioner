@@ -206,7 +206,6 @@ const Dashboard = () => {
 
           // Get Current Value from E-RA
           let currentVal = 0;
-
           let configId = getPowerConsumptionConfigId();
           if (!configId) configId = 101076; // Default fallback
 

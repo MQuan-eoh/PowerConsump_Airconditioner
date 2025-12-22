@@ -11,6 +11,7 @@
  * @param {number} params.roomArea - Room area (m2)
  * @param {string} params.acType - 'inverter' | 'non-inverter'
  * @param {Object} params.weather - Outdoor weather data (optional)
+ * @param {number} params.userOffset - Learned user preference offset (default 0)
  * @returns {Object} { temp: number, fan: string, mode: string, reason: string }
  */
 export const calculateOptimalSettings = ({
@@ -19,11 +20,20 @@ export const calculateOptimalSettings = ({
   roomArea,
   acType,
   weather,
+  userOffset = 0,
 }) => {
   let targetTemp = 26; // Base comfort temperature (Standard: 25-26°C)
   let fanMode = "auto";
   let operationMode = "cool";
   let reasons = [];
+
+  // 0. Apply User Preference (Reinforcement Learning)
+  if (userOffset !== 0) {
+    targetTemp += userOffset;
+    reasons.push(
+      `Learned User Preference: ${userOffset > 0 ? "+" : ""}${userOffset}°C`
+    );
+  }
 
   // 1. Heat Index Adjustment (Cảm giác nhiệt)
   // Nếu độ ẩm cao, người dùng cảm thấy nóng hơn -> Giảm nhiệt độ
