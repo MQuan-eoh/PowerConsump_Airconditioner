@@ -39,6 +39,7 @@ import {
   getLearnedUserPreference,
 } from "../services/aiLogService";
 import AIActivationOverlay from "../components/AIActivationOverlay";
+import AIDebugModal from "../components/AIDebugModal";
 import "./ControlPanel.css";
 
 const ControlPanel = () => {
@@ -68,6 +69,7 @@ const ControlPanel = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showAIActivation, setShowAIActivation] = useState(false);
+  const [showAIDebug, setShowAIDebug] = useState(false);
   const [stats, setStats] = useState({
     daily: 0,
     weekly: 0,
@@ -471,13 +473,9 @@ const ControlPanel = () => {
   const handlePowerToggle = async () => {
     if (ac) {
       const newPowerState = !ac.isOn;
-
-      // Gửi lệnh đến E-RA thiết bị IoT
       if (isEraReady && isEraLinked) {
         setEraPower(newPowerState);
       }
-
-      // Cập nhật Firebase để sync state
       await updateACUnit(acId, { isOn: newPowerState });
     }
   };
@@ -675,6 +673,15 @@ const ControlPanel = () => {
         >
           <FaDownload style={{ marginRight: "5px" }} />
           AI Logs
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={() => setShowAIDebug(true)}
+          style={{ marginLeft: "10px" }}
+          title="View AI Algorithm Details"
+        >
+          <FaRobot style={{ marginRight: "5px" }} />
+          AI Debug
         </button>
       </header>
 
@@ -1007,6 +1014,13 @@ const ControlPanel = () => {
         isOpen={showLogs}
         onClose={() => setShowLogs(false)}
         acId={acId}
+      />
+
+      <AIDebugModal
+        isOpen={showAIDebug}
+        onClose={() => setShowAIDebug(false)}
+        eraValues={eraValues}
+        ac={ac}
       />
     </div>
   );

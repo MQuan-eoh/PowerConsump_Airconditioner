@@ -430,8 +430,8 @@
 }
 
 .mode-btn.ai.active {
-  background: var(--accent-purple);
-  border-color: var(--accent-purple);
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
 }
 
 .ac-specs {

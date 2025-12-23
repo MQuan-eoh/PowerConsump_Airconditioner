@@ -56,6 +56,7 @@ const Dashboard = () => {
   const offlineCount = acUnits.filter((ac) => !ac.isOnline).length;
 
   const [totalKwh, setTotalKwh] = useState(0);
+  const [acConsumptions, setAcConsumptions] = useState({});
   const [baselines, setBaselines] = useState({});
   const acUnitsRef = useRef(acUnits);
 
@@ -64,143 +65,104 @@ const Dashboard = () => {
     acUnitsRef.current = acUnits;
   }, [acUnits]);
 
-  // Step 1: Fetch baseline power consumption for the first day of the month
+  // Helper to fetch baseline
+  const fetchBaseline = async (id, dateStr) => {
+    try {
+      const cacheKey = `baseline_${id}_${dateStr}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached !== null) return parseFloat(cached);
+
+      let val = await getDailyBaseline(id, dateStr);
+
+      if (val === null) {
+        let configId = getPowerConsumptionConfigId();
+        if (!configId) configId = 101076; // Default fallback
+
+        const dateFrom = `${dateStr}T00:00:00`;
+        const dateTo = `${dateStr}T00:02:00`;
+
+        try {
+          const historyData = await getHistoryValueV3(
+            configId,
+            dateFrom,
+            dateTo
+          );
+
+          if (historyData && historyData.length > 0) {
+            const sortedData = [...historyData].sort((a, b) => {
+              const dateA = new Date(a.created_at || a.x);
+              const dateB = new Date(b.created_at || b.x);
+              return dateA - dateB;
+            });
+
+            const firstItem = sortedData[0];
+            const eraVal = parseFloat(
+              firstItem.val !== undefined ? firstItem.val : firstItem.y
+            );
+
+            if (!isNaN(eraVal)) {
+              val = eraVal;
+              await saveDailyBaseline(id, dateStr, val);
+            }
+          }
+        } catch (eraError) {
+          console.error("Error fetching from E-RA:", eraError);
+        }
+      }
+
+      const result = val !== null ? val : 0;
+      if (val !== null) localStorage.setItem(cacheKey, val);
+      return result;
+    } catch (error) {
+      console.error(`Error fetching baseline for ${id}:`, error);
+      return 0;
+    }
+  };
+
+  // Step 1: Fetch baseline power consumption for the first day of the month and today
   useEffect(() => {
     const fetchBaselines = async () => {
       if (acUnits.length === 0) return;
 
       const now = new Date();
       const firstDayOfMonth = format(startOfMonth(now), "yyyy-MM-dd");
-
-      // Only fetch for IDs we haven't fetched yet
-      const idsToFetch = acUnits
-        .map((ac) => ac.id)
-        .filter((id) => baselines[id] === undefined);
-
-      if (idsToFetch.length === 0) return;
-
-      console.log(
-        "Fetching baselines for:",
-        idsToFetch,
-        "Date:",
-        firstDayOfMonth
-      );
+      const todayStr = format(now, "yyyy-MM-dd");
 
       const newBaselines = {};
+
       await Promise.all(
-        idsToFetch.map(async (id) => {
-          try {
-            // Check localStorage first
-            const cacheKey = `baseline_${id}_${firstDayOfMonth}`;
-            const cached = localStorage.getItem(cacheKey);
-
-            if (cached !== null) {
-              newBaselines[id] = parseFloat(cached);
-              console.log(`Baseline for ${id} (cached):`, newBaselines[id]);
-            } else {
-              // Try Firebase
-              let val = await getDailyBaseline(id, firstDayOfMonth);
-              console.log(`Baseline for ${id} (firebase):`, val);
-
-              // If not in Firebase, fetch from E-RA
-              if (val === null) {
-                console.log(
-                  `Baseline for ${id} not found in Firebase. Fetching from E-RA...`
-                );
-
-                let configId = getPowerConsumptionConfigId();
-                if (!configId) configId = 101076; // Default fallback
-
-                // Fetch from 00:00 to 00:02 of the first day of the month
-                const dateFrom = `${firstDayOfMonth}T00:00:00`;
-                const dateTo = `${firstDayOfMonth}T00:02:00`;
-
-                try {
-                  const historyData = await getHistoryValueV3(
-                    configId,
-                    dateFrom,
-                    dateTo
-                  );
-
-                  if (historyData && historyData.length > 0) {
-                    // Sort by date ascending to get the earliest record
-                    const sortedData = [...historyData].sort((a, b) => {
-                      const dateA = new Date(a.created_at || a.x);
-                      const dateB = new Date(b.created_at || b.x);
-                      return dateA - dateB;
-                    });
-
-                    const firstItem = sortedData[0];
-                    const eraVal = parseFloat(
-                      firstItem.val !== undefined ? firstItem.val : firstItem.y
-                    );
-
-                    if (!isNaN(eraVal)) {
-                      console.log(`Fetched baseline from E-RA: ${eraVal}`);
-                      val = eraVal;
-
-                      // Save to Firebase for next time
-                      await saveDailyBaseline(id, firstDayOfMonth, val);
-                      console.log("Saved baseline to Firebase.");
-                    }
-                  } else {
-                    console.warn(
-                      "No history data found in E-RA for start of month."
-                    );
-                  }
-                } catch (eraError) {
-                  console.error("Error fetching from E-RA:", eraError);
-                }
-              }
-
-              // Store the baseline value (default to 0 if still null)
-              const baselineVal = val !== null ? val : 0;
-              newBaselines[id] = baselineVal;
-
-              // Cache it if we found a value
-              if (val !== null) {
-                localStorage.setItem(cacheKey, val);
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching baseline for ${id}:`, error);
-            newBaselines[id] = 0;
-          }
+        acUnits.map(async (ac) => {
+          const monthly = await fetchBaseline(ac.id, firstDayOfMonth);
+          const daily = await fetchBaseline(ac.id, todayStr);
+          newBaselines[ac.id] = { monthly, daily };
         })
       );
+
       console.log("New baselines fetched:", newBaselines);
-      setBaselines((prev) => ({ ...prev, ...newBaselines }));
+      setBaselines(newBaselines);
     };
 
     fetchBaselines();
   }, [acUnits]); // Run when acUnits list changes (e.g. initial load or add/remove)
 
-  // Step 3 & 4: Calculate monthly consumption
+  // Step 3 & 4: Calculate monthly and daily consumption
   useEffect(() => {
-    const calculateMonthlyConsumption = async () => {
+    const calculateConsumption = async () => {
       const units = acUnits; // Use current state directly as we are in useEffect dependency
       let total = 0;
+      const newConsumptions = {};
 
-      console.log("Calculating total monthly consumption...");
+      console.log("Calculating consumption...");
 
       // 1. Filter ACs that are linked to E-RA
-      // (1.1) Check which AC has data + E-RA data
       const linkedUnits = units.filter((ac) => ac.isEraLinked !== false);
-      console.log(
-        `Found ${linkedUnits.length} linked AC units out of ${units.length} total.`
-      );
 
       // 2. Get current power consumption for each linked unit
       const consumptionPromises = linkedUnits.map(async (ac) => {
         try {
-          // (3) Get monthly baseline
           const baseline = baselines[ac.id];
 
-          // If baseline is not yet loaded, we can't calculate correctly, assume 0 or wait.
-          // But we'll treat undefined as 0 for safety, though it might spike.
-          // Better to skip if baseline is missing to avoid showing huge numbers (Current - 0).
-          if (baseline === undefined) {
-            console.warn(`No baseline found for AC ${ac.id}, skipping.`);
+          if (!baseline) {
             return 0;
           }
 
@@ -214,10 +176,6 @@ const Dashboard = () => {
           const past = new Date(now.getTime() - 24 * 60 * 60 * 1000);
           const dateFrom = format(past, "yyyy-MM-dd'T'HH:mm:ss");
           const dateTo = format(now, "yyyy-MM-dd'T'HH:mm:ss");
-
-          console.log(
-            `Fetching history for AC ${ac.id} from ${dateFrom} to ${dateTo}`
-          );
 
           const historyData = await getHistoryValueV3(
             configId,
@@ -239,25 +197,16 @@ const Dashboard = () => {
             );
             if (!isNaN(val)) {
               currentVal = val;
-              console.log(
-                `Fetched latest value for AC ${ac.id}: ${currentVal}`
-              );
             }
-          } else {
-            console.warn(
-              `No history data found for AC ${ac.id} in the last 24 hours.`
-            );
           }
 
-          // (4) Calculate Monthly for this AC
-          // If currentVal is 0 (and baseline is not), it means we failed to get a valid current reading.
-          // In this case, we shouldn't calculate a negative or zero consumption if it's actually higher.
-          // However, for now, we'll stick to the formula but log it.
+          const monthlyConsumption = Math.max(0, currentVal - baseline.monthly);
+          const dailyConsumption = Math.max(0, currentVal - baseline.daily);
 
-          const monthlyConsumption = Math.max(0, currentVal - baseline);
-          console.log(
-            `AC ${ac.name} (${ac.id}): Current=${currentVal}, Baseline=${baseline}, Monthly=${monthlyConsumption}`
-          );
+          newConsumptions[ac.id] = {
+            monthly: monthlyConsumption,
+            daily: dailyConsumption,
+          };
 
           return monthlyConsumption;
         } catch (error) {
@@ -276,14 +225,15 @@ const Dashboard = () => {
 
       console.log("Total Monthly Consumption:", total);
       setTotalKwh(total);
+      setAcConsumptions(newConsumptions);
     };
 
     if (acUnits.length > 0) {
-      calculateMonthlyConsumption();
+      calculateConsumption();
     }
 
     // Update every 1 minute
-    const interval = setInterval(calculateMonthlyConsumption, 60 * 1000);
+    const interval = setInterval(calculateConsumption, 60 * 1000);
 
     return () => clearInterval(interval);
   }, [acUnits, baselines]);
@@ -361,7 +311,8 @@ const Dashboard = () => {
             >
               <ACCard
                 ac={ac}
-                monthlyKwh={0}
+                monthlyKwh={acConsumptions[ac.id]?.monthly || 0}
+                todayKwh={acConsumptions[ac.id]?.daily || 0}
                 onClick={() => handleACClick(ac.id)}
                 onDelete={() => handleDeleteAC(ac.id)}
               />

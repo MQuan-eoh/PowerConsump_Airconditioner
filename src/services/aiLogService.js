@@ -29,16 +29,27 @@ export const logReward = (reward, reason) => {
 
 export const getLearnedUserPreference = () => {
   const logs = getLogs();
+  const now = new Date();
+  const currentHour = now.getHours();
+
   // Filter for USER_OVERRIDE actions in the last 7 days
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  const overrides = logs.filter(
-    (log) =>
-      log.type === "ACTION" &&
-      log.action === "USER_OVERRIDE" &&
-      new Date(log.timestamp) > oneWeekAgo
-  );
+  const overrides = logs.filter((log) => {
+    if (log.type !== "ACTION" || log.action !== "USER_OVERRIDE") return false;
+
+    const logTime = new Date(log.timestamp);
+    if (logTime <= oneWeekAgo) return false;
+
+    // Context-aware filtering: Time of Day
+    // Only consider overrides that happened within ±3 hours of current time
+    const logHour = logTime.getHours();
+    let diff = Math.abs(logHour - currentHour);
+    if (diff > 12) diff = 24 - diff; // Handle midnight wrap (e.g. 23h vs 1h)
+
+    return diff <= 3;
+  });
 
   if (overrides.length === 0) return 0;
 

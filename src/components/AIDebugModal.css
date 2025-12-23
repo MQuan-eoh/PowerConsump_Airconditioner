@@ -1,0 +1,151 @@
+.ai-debug-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+.ai-debug-modal-content {
+  background-color: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  color: #e0e0e0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.ai-debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 10px;
+}
+
+.ai-debug-header h2 {
+  margin: 0;
+  color: #4caf50;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 24px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: #fff;
+}
+
+.debug-section {
+  margin-bottom: 24px;
+  background: #252525;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.debug-section h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #64b5f6;
+  font-size: 1.1rem;
+  border-bottom: 1px solid #333;
+  padding-bottom: 8px;
+}
+
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.data-item {
+  background: #333;
+  padding: 10px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+}
+
+.data-label {
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-bottom: 4px;
+}
+
+.data-value {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+.data-value.highlight {
+  color: #4caf50;
+}
+
+.reasons-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.reasons-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid #333;
+  color: #ddd;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.reasons-list li:last-child {
+  border-bottom: none;
+}
+
+.reasons-list li::before {
+  content: "•";
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.no-reasons {
+  color: #888;
+  font-style: italic;
+}
+
+.refresh-btn {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-top: 10px;
+  width: 100%;
+  transition: background-color 0.2s;
+}
+
+.refresh-btn:hover {
+  background-color: #43a047;
+}

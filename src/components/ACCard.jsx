@@ -3,7 +3,7 @@ import { useLanguage } from "../contexts/LanguageContext";
 import { getTempColor } from "../utils/tempUtils";
 import "./ACCard.css";
 
-const ACCard = ({ ac, monthlyKwh, onClick, onDelete }) => {
+const ACCard = ({ ac, monthlyKwh, todayKwh, onClick, onDelete }) => {
   const { t } = useLanguage();
 
   const getFanModeLabel = (mode) => {
@@ -145,7 +145,8 @@ const ACCard = ({ ac, monthlyKwh, onClick, onDelete }) => {
         <div className="today-kwh">
           <span className="today-label">{t("today")}</span>
           <span className="today-value">
-            {(ac.todayKwh || 0).toFixed(2)} kWh
+            {(todayKwh !== undefined ? todayKwh : ac.todayKwh || 0).toFixed(2)}{" "}
+            kWh
           </span>
         </div>
       </div>
