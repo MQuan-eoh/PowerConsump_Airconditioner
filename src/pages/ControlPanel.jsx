@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -55,12 +55,31 @@ const ControlPanel = () => {
     setPower: setEraPower,
     setMode: setEraMode,
     setFanSpeed: setEraFanSpeed,
+    getValueById,
   } = useEra();
 
   const [ac, setAC] = useState(null);
 
+  // Construct local era values based on AC specific IDs
+  const localEraValues = useMemo(() => ({
+    ...eraValues,
+    currentTemperature:
+      (ac?.tempId && getValueById(ac.tempId)) ?? eraValues.currentTemperature,
+    voltage: (ac?.voltageId && getValueById(ac.voltageId)) ?? eraValues.voltage,
+    current: (ac?.currentId && getValueById(ac.currentId)) ?? eraValues.current,
+    powerConsumption:
+      (ac?.eraConfigId && getValueById(ac.eraConfigId)) ??
+      eraValues.powerConsumption,
+  }), [eraValues, ac, getValueById]);
+
   // AI Control Hook
-  useAIControl(ac, eraValues, setEraTemperature, setEraFanSpeed, setEraMode);
+  useAIControl(
+    ac,
+    localEraValues,
+    setEraTemperature,
+    setEraFanSpeed,
+    setEraMode
+  );
 
   const [loading, setLoading] = useState(true);
   const [energyHistory, setEnergyHistory] = useState([]);
@@ -94,7 +113,7 @@ const ControlPanel = () => {
 
   // Update sensor history when eraValues changes
   useEffect(() => {
-    if (!eraValues) return;
+    if (!localEraValues) return;
 
     setSensorHistory((prev) => {
       const MAX_POINTS = 20; // Keep last 20 data points
@@ -119,18 +138,13 @@ const ControlPanel = () => {
       };
 
       return {
-        temp: updateChannel(prev.temp, eraValues.currentTemperature),
-        voltage: updateChannel(prev.voltage, eraValues.voltage),
-        current: updateChannel(prev.current, eraValues.current),
-        power: updateChannel(prev.power, eraValues.powerConsumption),
+        temp: updateChannel(prev.temp, localEraValues.currentTemperature),
+        voltage: updateChannel(prev.voltage, localEraValues.voltage),
+        current: updateChannel(prev.current, localEraValues.current),
+        power: updateChannel(prev.power, localEraValues.powerConsumption),
       };
-      console.log("=====================");
-      console.log(
-        "Updated Power Consumption Values:",
-        eraValues.powerConsumption
-      );
     });
-  }, [eraValues]);
+  }, [localEraValues]);
 
   useEffect(() => {
     const fetchBaseline = async () => {
@@ -155,7 +169,13 @@ const ControlPanel = () => {
       }
 
       // 3. Fetch from E-RA API (00:00 - 00:02)
-      let configId = getPowerConsumptionConfigId();
+      // Only fetch if AC is linked to E-RA
+      if (!isEraLinked) {
+        console.log("AC not linked to E-RA, skipping baseline fetch");
+        return;
+      }
+
+      let configId = ac?.eraConfigId || getPowerConsumptionConfigId();
       if (!configId) configId = 101076;
 
       // Fetch from 00:00 to 00:02 to get the baseline
@@ -211,10 +231,10 @@ const ControlPanel = () => {
       }
     };
 
-    if (acId) {
+    if (acId && ac) {
       fetchBaseline();
     }
-  }, [acId]);
+  }, [acId, ac, isEraLinked]);
 
   // Fetch Monthly Baseline
   useEffect(() => {
@@ -239,11 +259,16 @@ const ControlPanel = () => {
 
       // If not in Firebase, fetch from E-RA
       if (val === null) {
+        if (!isEraLinked) {
+          console.log("AC not linked to E-RA, skipping monthly baseline fetch");
+          return;
+        }
+
         console.log(
           `Monthly baseline for ${acId} not found in Firebase. Fetching from E-RA...`
         );
 
-        let configId = getPowerConsumptionConfigId();
+        let configId = ac?.eraConfigId || getPowerConsumptionConfigId();
         if (!configId) configId = 101076; // Default fallback
 
         // Fetch from 00:00 to 00:02 of the first day of the month
@@ -294,14 +319,14 @@ const ControlPanel = () => {
       }
     };
 
-    if (acId) {
+    if (acId && ac) {
       fetchMonthlyBaseline();
     }
-  }, [acId]);
+  }, [acId, ac, isEraLinked]);
 
   // Save Daily End Value (Debounced)
   useEffect(() => {
-    if (!eraValues?.powerConsumption || !acId) return;
+    if (!localEraValues?.powerConsumption || !acId) return;
 
     const saveEndValue = async () => {
       const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -309,7 +334,7 @@ const ControlPanel = () => {
         await saveDailyEndValue(
           acId,
           todayStr,
-          parseFloat(eraValues.powerConsumption)
+          parseFloat(localEraValues.powerConsumption)
         );
       } catch (err) {
         console.error("Failed to save daily end value:", err);
@@ -318,12 +343,12 @@ const ControlPanel = () => {
 
     const timer = setTimeout(saveEndValue, 5000); // Debounce 5s
     return () => clearTimeout(timer);
-  }, [eraValues?.powerConsumption, acId]);
+  }, [localEraValues?.powerConsumption, acId]);
 
   // Calculate Daily and Monthly Consumption based on Baseline and Current Value
   useEffect(() => {
-    if (eraValues?.powerConsumption) {
-      const currentKwh = parseFloat(eraValues.powerConsumption);
+    if (localEraValues?.powerConsumption) {
+      const currentKwh = parseFloat(localEraValues.powerConsumption);
 
       if (dailyBaseline !== null) {
         const dailyKwh = Math.max(0, currentKwh - dailyBaseline);
@@ -344,7 +369,7 @@ const ControlPanel = () => {
         }));
       }
     }
-  }, [dailyBaseline, monthlyBaseline, eraValues?.powerConsumption]);
+  }, [dailyBaseline, monthlyBaseline, localEraValues?.powerConsumption]);
 
   useEffect(() => {
     const unsubscribe = subscribeToACUnit(acId, (data) => {
@@ -358,7 +383,7 @@ const ControlPanel = () => {
   // Load Chart Data and Other Stats (Weekly, Monthly)
   useEffect(() => {
     const loadChartAndStats = async () => {
-      let configId = getPowerConsumptionConfigId();
+      let configId = ac?.eraConfigId || getPowerConsumptionConfigId();
       if (!configId) configId = 101076;
 
       // 1. Load Chart Data
@@ -381,10 +406,10 @@ const ControlPanel = () => {
               kwh = data.endPW - data.beginPW;
             } else if (
               dateStr === format(new Date(), "yyyy-MM-dd") &&
-              eraValues?.powerConsumption
+              localEraValues?.powerConsumption
             ) {
               // Today: use current value if endPW not set
-              kwh = parseFloat(eraValues.powerConsumption) - data.beginPW;
+              kwh = parseFloat(localEraValues.powerConsumption) - data.beginPW;
             }
           }
 
@@ -436,20 +461,20 @@ const ControlPanel = () => {
     };
 
     loadChartAndStats();
-  }, [acId, chartPeriod, selectedDate]);
+  }, [acId, chartPeriod, selectedDate, ac]);
 
   // Update Today's value in Chart when in Week mode
   useEffect(() => {
     if (
       chartPeriod === "week" &&
       energyHistory.length > 0 &&
-      eraValues?.powerConsumption &&
+      localEraValues?.powerConsumption &&
       dailyBaseline !== null
     ) {
       const todayStr = format(new Date(), "yyyy-MM-dd");
       const currentKwh = Math.max(
         0,
-        parseFloat(eraValues.powerConsumption) - dailyBaseline
+        parseFloat(localEraValues.powerConsumption) - dailyBaseline
       );
 
       setEnergyHistory((prev) =>
@@ -461,7 +486,7 @@ const ControlPanel = () => {
         })
       );
     }
-  }, [eraValues?.powerConsumption, chartPeriod, dailyBaseline]);
+  }, [localEraValues?.powerConsumption, chartPeriod, dailyBaseline]);
 
   // Sync online status with E-RA
   useEffect(() => {
@@ -720,8 +745,8 @@ const ControlPanel = () => {
                 <SensorCard
                   title={t("currentTemp") || "Current Temp"}
                   value={
-                    eraValues.currentTemperature !== null
-                      ? eraValues.currentTemperature
+                    localEraValues.currentTemperature !== null
+                      ? localEraValues.currentTemperature
                       : "--"
                   }
                   unit="°C"
@@ -731,7 +756,11 @@ const ControlPanel = () => {
                 />
                 <SensorCard
                   title={t("voltage") || "Voltage"}
-                  value={eraValues.voltage !== null ? eraValues.voltage : "--"}
+                  value={
+                    localEraValues.voltage !== null
+                      ? localEraValues.voltage
+                      : "--"
+                  }
                   unit="V"
                   icon={<FaBolt />}
                   color="#eab308" // Yellow
@@ -739,7 +768,11 @@ const ControlPanel = () => {
                 />
                 <SensorCard
                   title={t("current") || "Current"}
-                  value={eraValues.current !== null ? eraValues.current : "--"}
+                  value={
+                    localEraValues.current !== null
+                      ? localEraValues.current
+                      : "--"
+                  }
                   unit="A"
                   icon={<FaPlug />}
                   color="#3b82f6" // Blue
@@ -748,8 +781,8 @@ const ControlPanel = () => {
                 <SensorCard
                   title={t("powerConsumption") || "Power Consumption"}
                   value={
-                    eraValues.powerConsumption !== null
-                      ? eraValues.powerConsumption
+                    localEraValues.powerConsumption !== null
+                      ? localEraValues.powerConsumption
                       : "--"
                   }
                   unit="kWh"

@@ -21,6 +21,7 @@ import {
   sendFanSpeedToDevice,
   requestHistories,
   cleanupEraWidget,
+  getValueById,
 } from "../services/eraService";
 
 // Tạo context
@@ -165,6 +166,7 @@ export const EraProvider = ({ children }) => {
     setMode,
     setFanSpeed,
     getHistories,
+    getValueById,
 
     // Utilities
     isReady: isConnected && isConfigLoaded,

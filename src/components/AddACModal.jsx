@@ -14,6 +14,10 @@ const AddACModal = ({ onClose, onAdd }) => {
     power: "1000",
     brand: "",
     model: "",
+    eraConfigId: "",
+    voltageId: "",
+    currentId: "",
+    tempId: "",
   });
 
   const handleChange = (e) => {
@@ -31,6 +35,10 @@ const AddACModal = ({ onClose, onAdd }) => {
       roomArea: parseFloat(formData.roomArea) || 0,
       capacity: parseInt(formData.capacity) || 9000,
       power: parseInt(formData.power) || 1000,
+      eraConfigId: formData.eraConfigId ? parseInt(formData.eraConfigId) : null,
+      voltageId: formData.voltageId ? parseInt(formData.voltageId) : null,
+      currentId: formData.currentId ? parseInt(formData.currentId) : null,
+      tempId: formData.tempId ? parseInt(formData.tempId) : null,
     });
   };
 
@@ -151,6 +159,56 @@ const AddACModal = ({ onClose, onAdd }) => {
                     className="input-field"
                     placeholder={t("powerPlaceholder")}
                     min="0"
+                  />
+                </div>
+                <div className="input-group">
+                  <label>{t("eraConfigId")}</label>
+                  <input
+                    type="number"
+                    name="eraConfigId"
+                    value={formData.eraConfigId}
+                    onChange={handleChange}
+                    className="input-field"
+                    placeholder="ID"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="input-group">
+                  <label>{t("voltageId")}</label>
+                  <input
+                    type="number"
+                    name="voltageId"
+                    value={formData.voltageId}
+                    onChange={handleChange}
+                    className="input-field"
+                    placeholder="ID"
+                  />
+                </div>
+                <div className="input-group">
+                  <label>{t("currentId")}</label>
+                  <input
+                    type="number"
+                    name="currentId"
+                    value={formData.currentId}
+                    onChange={handleChange}
+                    className="input-field"
+                    placeholder="ID"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="input-group">
+                  <label>{t("tempId")}</label>
+                  <input
+                    type="number"
+                    name="tempId"
+                    value={formData.tempId}
+                    onChange={handleChange}
+                    className="input-field"
+                    placeholder="ID"
                   />
                 </div>
               </div>

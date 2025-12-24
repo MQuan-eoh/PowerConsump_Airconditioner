@@ -385,10 +385,10 @@ export const saveDailyBaseline = async (acId, dateStr, value) => {
 
   if (snapshot.exists() && typeof snapshot.val() === "number") {
     // Migrate legacy number to object
-    await set(ref(database, refPath), { beginPW: value });
+    await set(ref(database, refPath), { beginPW: value, acId });
   } else {
     // Update existing object or create new
-    await update(ref(database, refPath), { beginPW: value });
+    await update(ref(database, refPath), { beginPW: value, acId });
   }
 };
 
@@ -401,10 +401,11 @@ export const saveDailyEndValue = async (acId, dateStr, value) => {
     await set(ref(database, refPath), {
       beginPW: snapshot.val(),
       endPW: value,
+      acId,
     });
   } else {
     // Update existing object or create new
-    await update(ref(database, refPath), { endPW: value });
+    await update(ref(database, refPath), { endPW: value, acId });
   }
 };
 
@@ -414,6 +415,13 @@ export const getDailyBaseline = async (acId, dateStr) => {
   if (snapshot.exists()) {
     const val = snapshot.val();
     if (typeof val === "object") {
+      // Verify acId if present to prevent cross-contamination
+      if (val.acId && val.acId !== acId) {
+        console.warn(
+          `Data mismatch in getDailyBaseline: Expected ${acId}, found ${val.acId}`
+        );
+        return null;
+      }
       return val.beginPW;
     }
     return val;
@@ -428,6 +436,13 @@ export const getDailyPowerData = async (acId, dateStr) => {
     const val = snapshot.val();
     if (typeof val === "number") {
       return { beginPW: val, endPW: null };
+    }
+    // Verify acId if present
+    if (val.acId && val.acId !== acId) {
+      console.warn(
+        `Data mismatch in getDailyPowerData: Expected ${acId}, found ${val.acId}`
+      );
+      return null;
     }
     return val; // { beginPW, endPW }
   }

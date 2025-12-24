@@ -66,7 +66,8 @@ const Dashboard = () => {
   }, [acUnits]);
 
   // Helper to fetch baseline
-  const fetchBaseline = async (id, dateStr) => {
+  const fetchBaseline = async (ac, dateStr) => {
+    const id = ac.id;
     try {
       const cacheKey = `baseline_${id}_${dateStr}`;
       const cached = localStorage.getItem(cacheKey);
@@ -75,7 +76,7 @@ const Dashboard = () => {
       let val = await getDailyBaseline(id, dateStr);
 
       if (val === null) {
-        let configId = getPowerConsumptionConfigId();
+        let configId = ac.eraConfigId || getPowerConsumptionConfigId();
         if (!configId) configId = 101076; // Default fallback
 
         const dateFrom = `${dateStr}T00:00:00`;
@@ -132,8 +133,8 @@ const Dashboard = () => {
 
       await Promise.all(
         acUnits.map(async (ac) => {
-          const monthly = await fetchBaseline(ac.id, firstDayOfMonth);
-          const daily = await fetchBaseline(ac.id, todayStr);
+          const monthly = await fetchBaseline(ac, firstDayOfMonth);
+          const daily = await fetchBaseline(ac, todayStr);
           newBaselines[ac.id] = { monthly, daily };
         })
       );
@@ -168,7 +169,7 @@ const Dashboard = () => {
 
           // Get Current Value from E-RA
           let currentVal = 0;
-          let configId = getPowerConsumptionConfigId();
+          let configId = ac.eraConfigId || getPowerConsumptionConfigId();
           if (!configId) configId = 101076; // Default fallback
 
           // Fetch latest value (last 24 hours to ensure we catch it even if device is infrequent)

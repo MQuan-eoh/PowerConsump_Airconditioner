@@ -14,6 +14,7 @@ const ACSettings = ({ ac, onClose, onSave }) => {
     power: ac.power || "1000",
     brand: ac.brand || "",
     model: ac.model || "",
+    eraConfigId: ac.eraConfigId || "",
     isEraLinked: ac.isEraLinked !== false, // Default to true if undefined (legacy support)
   });
 
@@ -32,6 +33,7 @@ const ACSettings = ({ ac, onClose, onSave }) => {
       roomArea: parseFloat(formData.roomArea) || 0,
       capacity: parseInt(formData.capacity) || 9000,
       power: parseInt(formData.power) || 1000,
+      eraConfigId: formData.eraConfigId ? parseInt(formData.eraConfigId) : null,
     });
   };
 
@@ -156,6 +158,17 @@ const ACSettings = ({ ac, onClose, onSave }) => {
                       onChange={handleChange}
                       className="input-field"
                       min="0"
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>E-RA Config ID</label>
+                    <input
+                      type="number"
+                      name="eraConfigId"
+                      value={formData.eraConfigId}
+                      onChange={handleChange}
+                      className="input-field"
+                      placeholder="E.g.: 101076"
                     />
                   </div>
                 </div>

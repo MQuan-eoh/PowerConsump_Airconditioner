@@ -40,6 +40,7 @@ let powerAir1 = null;
 let currentAir1Value = null;
 let voltageAir1Value = null;
 let currentPowerConsumptionValue = null;
+let latestValues = {};
 
 // Callbacks để thông báo khi có dữ liệu mới
 let onValuesUpdateCallback = null;
@@ -225,10 +226,17 @@ const handleConfiguration = (configuration) => {
  * Xử lý values nhận từ E-RA
  */
 const handleValues = (values) => {
+  // If service is not initialized (e.g. after cleanup), ignore values silently
+  if (!isInitialized) {
+    return;
+  }
+
   if (!isConfigurationLoaded) {
     console.warn("Configuration not loaded yet, skipping values processing");
     return;
   }
+
+  latestValues = values;
 
   // GET VALUES từ E-RA với safe access
   if (configTargetTempAir1?.id && values[configTargetTempAir1.id]) {
@@ -625,6 +633,18 @@ export const getPowerConsumptionConfigId = () => {
   return null;
 };
 
+/**
+ * Get value by Config ID
+ * @param {number} id - The Config ID
+ * @returns {any} - The value
+ */
+export const getValueById = (id) => {
+  if (latestValues && latestValues[id]) {
+    return latestValues[id].value;
+  }
+  return null;
+};
+
 export default {
   initEraWidget,
   getCurrentValues,
@@ -640,4 +660,5 @@ export default {
   cleanupEraWidget,
   getHistoryValueV3,
   getPowerConsumptionConfigId,
+  getValueById,
 };
