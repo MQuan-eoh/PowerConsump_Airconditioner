@@ -61,16 +61,21 @@ const ControlPanel = () => {
   const [ac, setAC] = useState(null);
 
   // Construct local era values based on AC specific IDs
-  const localEraValues = useMemo(() => ({
-    ...eraValues,
-    currentTemperature:
-      (ac?.tempId && getValueById(ac.tempId)) ?? eraValues.currentTemperature,
-    voltage: (ac?.voltageId && getValueById(ac.voltageId)) ?? eraValues.voltage,
-    current: (ac?.currentId && getValueById(ac.currentId)) ?? eraValues.current,
-    powerConsumption:
-      (ac?.eraConfigId && getValueById(ac.eraConfigId)) ??
-      eraValues.powerConsumption,
-  }), [eraValues, ac, getValueById]);
+  const localEraValues = useMemo(
+    () => ({
+      ...eraValues,
+      currentTemperature:
+        (ac?.tempId && getValueById(ac.tempId)) ?? eraValues.currentTemperature,
+      voltage:
+        (ac?.voltageId && getValueById(ac.voltageId)) ?? eraValues.voltage,
+      current:
+        (ac?.currentId && getValueById(ac.currentId)) ?? eraValues.current,
+      powerConsumption:
+        (ac?.eraConfigId && getValueById(ac.eraConfigId)) ??
+        eraValues.powerConsumption,
+    }),
+    [eraValues, ac, getValueById]
+  );
 
   // AI Control Hook
   useAIControl(
