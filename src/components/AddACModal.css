@@ -12,6 +12,17 @@
   transition: all 0.2s ease;
 }
 
+/* Modal sizing override */
+.modal-content.wide-modal {
+  max-width: 800px;
+}
+
+@media (max-width: 850px) {
+  .modal-content.wide-modal {
+    max-width: 95%;
+  }
+}
+
 .close-btn:hover {
   background: var(--bg-glass-light);
   color: var(--text-primary);
@@ -31,5 +42,156 @@
 @media (max-width: 500px) {
   .form-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* New Styles for Step 2 UI (E-RA Integration & Mapping) */
+
+.era-setup-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.setup-section {
+  padding: 24px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-glass);
+  padding-bottom: 12px;
+}
+
+.header-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent-blue);
+}
+
+.header-icon.green {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--accent-green);
+}
+
+.section-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.action-row {
+  margin-bottom: 20px;
+}
+
+.btn.full-width {
+  width: 100%;
+  justify-content: center;
+  padding: 12px;
+  font-weight: 500;
+}
+
+.btn-outline-primary {
+  border: 1px solid var(--accent-blue);
+  color: var(--accent-blue);
+  background: transparent;
+  transition: all 0.3s ease;
+}
+
+.btn-outline-primary:hover {
+  background: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+}
+
+.btn-outline-primary:disabled {
+  border-color: var(--text-muted);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.1);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 650px) {
+  .mapping-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mapping-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mapping-item .input-field {
+  width: 100%;
+}
+
+.mapping-item label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.config-id {
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: currentColor;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

@@ -1,0 +1,64 @@
+.neon-border {
+  border: 2px solid #00f3ff;
+  box-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff inset;
+  background: rgba(10, 20, 30, 0.95) !important;
+  color: white;
+}
+
+.modal-header h2 {
+  color: #ffffff;
+  /* text-shadow: 0 0 5px #94f7fc; */
+}
+
+.mapping-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+/* Scrollbar styling for the mapping body */
+.mapping-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.mapping-body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mapping-body::-webkit-scrollbar-thumb {
+  background: #00f3ff;
+  border-radius: 4px;
+}
+
+.mapping-instruction {
+  margin-bottom: 20px;
+  color: #a0c0ff;
+  font-style: italic;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.3);
+  padding-bottom: 10px;
+}
+
+.neon-input {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid #00f3ff !important;
+  color: white !important;
+}
+
+.neon-input option {
+  background-color: #0a141e;
+  color: white;
+}
+
+.neon-btn {
+  background-color: transparent !important;
+  border: 1px solid #8deef3 !important;
+  color: #92f2f7 !important;
+  box-shadow: 0 0 5px #92f2f7;
+  transition: all 0.3s ease;
+}
+
+.neon-btn:hover {
+  background-color: #00f3ff !important;
+  color: #000 !important;
+  box-shadow: 0 0 15px #00f3ff;
+}
