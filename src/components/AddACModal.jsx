@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../contexts/LanguageContext";
+import { fetchUnitChips, fetchChipConfigs } from "../services/eraService";
 import "./AddACModal.css";
 
 const AddACModal = ({ onClose, onAdd }) => {
@@ -14,11 +15,13 @@ const AddACModal = ({ onClose, onAdd }) => {
     power: "1000",
     brand: "",
     model: "",
-    eraConfigId: "",
-    voltageId: "",
-    currentId: "",
-    tempId: "",
   });
+
+  const [chips, setChips] = useState([]);
+  const [configs, setConfigs] = useState([]);
+  const [selectedChipId, setSelectedChipId] = useState("");
+  const [loadingEra, setLoadingEra] = useState(false);
+  const [eraError, setEraError] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -28,6 +31,44 @@ const AddACModal = ({ onClose, onAdd }) => {
     }));
   };
 
+  const handleLoadChips = async () => {
+    setLoadingEra(true);
+    setEraError(null);
+    try {
+      const data = await fetchUnitChips();
+      // Handle array or pagination result
+      const list = Array.isArray(data) ? data : data.results || [];
+      setChips(list);
+    } catch (error) {
+      console.error(error);
+      setEraError("Failed to load chips from E-RA");
+    } finally {
+      setLoadingEra(false);
+    }
+  };
+
+  const handleChipChange = async (e) => {
+    const chipId = e.target.value;
+    setSelectedChipId(chipId);
+    setConfigs([]);
+
+    if (chipId) {
+      setLoadingEra(true);
+      setEraError(null);
+      try {
+        const data = await fetchChipConfigs(chipId);
+        const list = Array.isArray(data) ? data : data.results || [];
+        setConfigs(list);
+      } catch (error) {
+        console.error(error);
+        setEraError("Failed to load configs for selected chip");
+        setConfigs([]);
+      } finally {
+        setLoadingEra(false);
+      }
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onAdd({
@@ -35,11 +76,21 @@ const AddACModal = ({ onClose, onAdd }) => {
       roomArea: parseFloat(formData.roomArea) || 0,
       capacity: parseInt(formData.capacity) || 9000,
       power: parseInt(formData.power) || 1000,
-      eraConfigId: formData.eraConfigId ? parseInt(formData.eraConfigId) : null,
-      voltageId: formData.voltageId ? parseInt(formData.voltageId) : null,
-      currentId: formData.currentId ? parseInt(formData.currentId) : null,
-      tempId: formData.tempId ? parseInt(formData.tempId) : null,
+      chipId: selectedChipId, // Add chipId to the data
     });
+  };
+
+  const renderConfigOptions = () => {
+    return (
+      <>
+        <option value="">{t("selectConfig") || "-- Select Config --"}</option>
+        {configs.map((cfg) => (
+          <option key={cfg.id} value={cfg.id}>
+            {cfg.caption || cfg.name || cfg.parameter_name} (ID: {cfg.id})
+          </option>
+        ))}
+      </>
+    );
   };
 
   return (
@@ -76,6 +127,76 @@ const AddACModal = ({ onClose, onAdd }) => {
 
           <form onSubmit={handleSubmit}>
             <div className="modal-body">
+              {/* E-RA Integration Section */}
+              <div
+                className="era-section"
+                style={{
+                  marginBottom: "20px",
+                  padding: "15px",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "8px",
+                  border: "1px solid #e9ecef",
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: "1rem",
+                    marginBottom: "10px",
+                    color: "#666",
+                  }}
+                >
+                  E-RA Integration
+                </h3>
+
+                {eraError && (
+                  <div
+                    style={{
+                      color: "red",
+                      marginBottom: "10px",
+                      fontSize: "0.9rem",
+                    }}
+                  >
+                    {eraError}
+                  </div>
+                )}
+
+                <div className="form-row">
+                  <div className="input-group">
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary"
+                      onClick={handleLoadChips}
+                      disabled={loadingEra}
+                      style={{ width: "100%" }}
+                    >
+                      {loadingEra ? "Loading..." : "Load Devices from E-RA"}
+                    </button>
+                  </div>
+                </div>
+
+                {chips.length > 0 && (
+                  <div className="form-row">
+                    <div className="input-group">
+                      <label>Select Device (Chip)</label>
+                      <select
+                        className="input-field"
+                        value={selectedChipId}
+                        onChange={handleChipChange}
+                        disabled={loadingEra}
+                      >
+                        <option value="">-- Select Device --</option>
+                        {chips.map((chip) => (
+                          <option key={chip.id} value={chip.id}>
+                            {chip.name || chip.code} (ID: {chip.id})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Standard Fields */}
               <div className="form-row">
                 <div className="input-group">
                   <label>{t("acName")}</label>
@@ -161,57 +282,9 @@ const AddACModal = ({ onClose, onAdd }) => {
                     min="0"
                   />
                 </div>
-                <div className="input-group">
-                  <label>{t("eraConfigId")}</label>
-                  <input
-                    type="number"
-                    name="eraConfigId"
-                    value={formData.eraConfigId}
-                    onChange={handleChange}
-                    className="input-field"
-                    placeholder="ID"
-                  />
-                </div>
               </div>
 
-              <div className="form-row">
-                <div className="input-group">
-                  <label>{t("voltageId")}</label>
-                  <input
-                    type="number"
-                    name="voltageId"
-                    value={formData.voltageId}
-                    onChange={handleChange}
-                    className="input-field"
-                    placeholder="ID"
-                  />
-                </div>
-                <div className="input-group">
-                  <label>{t("currentId")}</label>
-                  <input
-                    type="number"
-                    name="currentId"
-                    value={formData.currentId}
-                    onChange={handleChange}
-                    className="input-field"
-                    placeholder="ID"
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="input-group">
-                  <label>{t("tempId")}</label>
-                  <input
-                    type="number"
-                    name="tempId"
-                    value={formData.tempId}
-                    onChange={handleChange}
-                    className="input-field"
-                    placeholder="ID"
-                  />
-                </div>
-              </div>
+              {/* Config Mapping Section - REMOVED */}
 
               <div className="form-row">
                 <div className="input-group">

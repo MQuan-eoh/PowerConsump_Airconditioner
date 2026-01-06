@@ -10,10 +10,7 @@ import {
   getDailyBaseline,
   saveDailyBaseline,
 } from "../services/firebaseService";
-import {
-  getHistoryValueV3,
-  getPowerConsumptionConfigId,
-} from "../services/eraService";
+import { getHistoryValueV3 } from "../services/eraService";
 import { useLanguage } from "../contexts/LanguageContext";
 import ACCard from "../components/ACCard";
 import AddACModal from "../components/AddACModal";
@@ -76,8 +73,13 @@ const Dashboard = () => {
       let val = await getDailyBaseline(id, dateStr);
 
       if (val === null) {
-        let configId = ac.eraConfigId || getPowerConsumptionConfigId();
-        if (!configId) configId = 101076; // Default fallback
+        let configId = ac.eraConfigId;
+
+        if (!configId) {
+          // If no config ID, we can't fetch from E-RA.
+          // Return 0 or handle as "no data"
+          return 0;
+        }
 
         const dateFrom = `${dateStr}T00:00:00`;
         const dateTo = `${dateStr}T00:02:00`;
@@ -169,8 +171,12 @@ const Dashboard = () => {
 
           // Get Current Value from E-RA
           let currentVal = 0;
-          let configId = ac.eraConfigId || getPowerConsumptionConfigId();
-          if (!configId) configId = 101076; // Default fallback
+          let configId = ac.eraConfigId;
+
+          if (!configId) {
+            // No config ID, return 0
+            return 0;
+          }
 
           // Fetch latest value (last 24 hours to ensure we catch it even if device is infrequent)
           const now = new Date();

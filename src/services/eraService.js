@@ -638,6 +638,84 @@ export const getPowerConsumptionConfigId = () => {
  * @param {number} id - The Config ID
  * @returns {any} - The value
  */
+// ==========================================
+// API MAPPING HELPERS
+// ==========================================
+const ERA_API_BASE_URL = "/api";
+const ERA_API_TOKEN = "Token a159b7047b33aebfdb2e83f614c5049e5d760d6d";
+const HARDCODED_UNIT_ID = 10922;
+
+/**
+ * Fetch list of Chips for a Unit
+ * @param {number} unitId
+ * @returns {Promise<Array>} List of chips
+ */
+export const fetchUnitChips = async (unitId = HARDCODED_UNIT_ID) => {
+  try {
+    const response = await fetch(
+      `${ERA_API_BASE_URL}/property_manager/iot_dashboard/filters/owner/chips/?unit=${unitId}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: ERA_API_TOKEN,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Error fetching chips: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    // Normalize response: Handle pagination (results array) or direct array
+    const chips = Array.isArray(data) ? data : data.results || [];
+    console.log(`Fetched ${chips.length} chips for unit ${unitId}`);
+    return chips;
+  } catch (error) {
+    console.error("Failed to fetch unit chips:", error);
+    throw error;
+  }
+};
+
+/**
+ * fetch chip configs by chip ID
+ * @param {number} chipId - The ID of the Gateway/Chip
+ * @returns {Promise<Array>} List of configs
+ */
+export const fetchChipConfigs = async (chipId) => {
+  if (!chipId) {
+    console.warn("fetchChipConfigs: No chipId provided");
+    return [];
+  }
+
+  try {
+    const url = `${ERA_API_BASE_URL}/chip_manager/configs/?sensor__chip=${chipId}`;
+    console.log("Fetching configs for chip:", chipId, "URL:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: ERA_API_TOKEN,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error fetching chip configs: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    // Normalize response
+    const configs = Array.isArray(data) ? data : data.results || [];
+    console.log(`Fetched ${configs.length} configs for chip ${chipId}`);
+    return configs;
+  } catch (error) {
+    console.error("Failed to fetch chip configs:", error);
+    throw error;
+  }
+};
+
 export const getValueById = (id) => {
   if (latestValues && latestValues[id]) {
     return latestValues[id].value;
@@ -661,4 +739,6 @@ export default {
   getHistoryValueV3,
   getPowerConsumptionConfigId,
   getValueById,
+  fetchUnitChips,
+  fetchChipConfigs,
 };

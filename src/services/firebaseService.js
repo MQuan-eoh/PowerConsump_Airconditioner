@@ -35,7 +35,11 @@ export const createACUnit = async (acData) => {
     model: acData.model || "",
 
     // Integration
-    isEraLinked: false, // Default to false for new units
+    isEraLinked: acData.isEraLinked || false,
+    eraConfigId: acData.eraConfigId || null,
+    voltageId: acData.voltageId || null,
+    currentId: acData.currentId || null,
+    tempId: acData.tempId || null,
 
     // Current state
     isOnline: false,

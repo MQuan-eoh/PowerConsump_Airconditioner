@@ -15,6 +15,9 @@ const ACSettings = ({ ac, onClose, onSave }) => {
     brand: ac.brand || "",
     model: ac.model || "",
     eraConfigId: ac.eraConfigId || "",
+    voltageId: ac.voltageId || "",
+    currentId: ac.currentId || "",
+    tempId: ac.tempId || "",
     isEraLinked: ac.isEraLinked !== false, // Default to true if undefined (legacy support)
   });
 
@@ -34,6 +37,9 @@ const ACSettings = ({ ac, onClose, onSave }) => {
       capacity: parseInt(formData.capacity) || 9000,
       power: parseInt(formData.power) || 1000,
       eraConfigId: formData.eraConfigId ? parseInt(formData.eraConfigId) : null,
+      voltageId: formData.voltageId ? parseInt(formData.voltageId) : null,
+      currentId: formData.currentId ? parseInt(formData.currentId) : null,
+      tempId: formData.tempId ? parseInt(formData.tempId) : null,
     });
   };
 
@@ -161,7 +167,7 @@ const ACSettings = ({ ac, onClose, onSave }) => {
                     />
                   </div>
                   <div className="input-group">
-                    <label>E-RA Config ID</label>
+                    <label>E-RA Config ID (Power)</label>
                     <input
                       type="number"
                       name="eraConfigId"
@@ -169,6 +175,45 @@ const ACSettings = ({ ac, onClose, onSave }) => {
                       onChange={handleChange}
                       className="input-field"
                       placeholder="E.g.: 101076"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="input-group">
+                    <label>Temp ID</label>
+                    <input
+                      type="number"
+                      name="tempId"
+                      value={formData.tempId}
+                      onChange={handleChange}
+                      className="input-field"
+                      placeholder="E.g.: 101077"
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>Voltage ID</label>
+                    <input
+                      type="number"
+                      name="voltageId"
+                      value={formData.voltageId}
+                      onChange={handleChange}
+                      className="input-field"
+                      placeholder="E.g.: 101078"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="input-group">
+                    <label>Current ID</label>
+                    <input
+                      type="number"
+                      name="currentId"
+                      value={formData.currentId}
+                      onChange={handleChange}
+                      className="input-field"
+                      placeholder="E.g.: 101079"
                     />
                   </div>
                 </div>

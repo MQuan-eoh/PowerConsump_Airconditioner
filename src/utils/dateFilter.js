@@ -145,14 +145,17 @@ export const processConsumptionData = (data, period, dateRange) => {
   }
 
   // 4. Map to Chart Data
+  let previousMax = firstValue;
+
   const chartData = fullKeys.map((key) => {
     const group = groupedData[key];
     let kwh = 0;
 
     if (group) {
       if (period === "day") {
-        // Cumulative consumption from start of day
-        kwh = group.max - firstValue;
+        // Hourly consumption: Current Max - Previous Max
+        kwh = group.max - previousMax;
+        previousMax = group.max;
       } else {
         // Consumption within the period
         kwh = group.max - group.min;

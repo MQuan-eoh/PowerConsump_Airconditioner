@@ -10,10 +10,7 @@ import {
   getDailyBaseline,
   getDailyPowerData,
 } from "../services/firebaseService";
-import {
-  getHistoryValueV3,
-  getPowerConsumptionConfigId,
-} from "../services/eraService";
+import { getHistoryValueV3 } from "../services/eraService";
 import { format, startOfMonth, startOfWeek, addDays, parseISO } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
 import { useLanguage } from "../contexts/LanguageContext";
@@ -61,16 +58,21 @@ const ControlPanel = () => {
   const [ac, setAC] = useState(null);
 
   // Construct local era values based on AC specific IDs
-  const localEraValues = useMemo(() => ({
-    ...eraValues,
-    currentTemperature:
-      (ac?.tempId && getValueById(ac.tempId)) ?? eraValues.currentTemperature,
-    voltage: (ac?.voltageId && getValueById(ac.voltageId)) ?? eraValues.voltage,
-    current: (ac?.currentId && getValueById(ac.currentId)) ?? eraValues.current,
-    powerConsumption:
-      (ac?.eraConfigId && getValueById(ac.eraConfigId)) ??
-      eraValues.powerConsumption,
-  }), [eraValues, ac, getValueById]);
+  const localEraValues = useMemo(
+    () => ({
+      ...eraValues,
+      currentTemperature:
+        (ac?.tempId && getValueById(ac.tempId)) ?? eraValues.currentTemperature,
+      voltage:
+        (ac?.voltageId && getValueById(ac.voltageId)) ?? eraValues.voltage,
+      current:
+        (ac?.currentId && getValueById(ac.currentId)) ?? eraValues.current,
+      powerConsumption:
+        (ac?.eraConfigId && getValueById(ac.eraConfigId)) ??
+        eraValues.powerConsumption,
+    }),
+    [eraValues, ac, getValueById]
+  );
 
   // AI Control Hook
   useAIControl(
@@ -153,10 +155,22 @@ const ControlPanel = () => {
 
       // 1. Check LocalStorage
       const cachedBaseline = localStorage.getItem(localStorageKey);
-      if (cachedBaseline) {
-        console.log("Using cached baseline from LocalStorage:", cachedBaseline);
-        setDailyBaseline(parseFloat(cachedBaseline));
-        return;
+      if (
+        cachedBaseline &&
+        cachedBaseline !== "undefined" &&
+        cachedBaseline !== "NaN"
+      ) {
+        const parsed = parseFloat(cachedBaseline);
+        if (!isNaN(parsed)) {
+          console.log("Using cached baseline from LocalStorage:", parsed);
+          setDailyBaseline(parsed);
+          return;
+        }
+      }
+
+      // Clear invalid cache
+      if (cachedBaseline === "undefined" || cachedBaseline === "NaN") {
+        localStorage.removeItem(localStorageKey);
       }
 
       // 2. Check Firebase
@@ -175,8 +189,11 @@ const ControlPanel = () => {
         return;
       }
 
-      let configId = ac?.eraConfigId || getPowerConsumptionConfigId();
-      if (!configId) configId = 101076;
+      let configId = ac?.eraConfigId;
+      if (!configId) {
+        console.warn("No E-RA Config ID found for AC:", acId);
+        return;
+      }
 
       // Fetch from 00:00 to 00:02 to get the baseline
       const dateFrom = `${todayStr}T00:00:00`;
@@ -221,7 +238,7 @@ const ControlPanel = () => {
           }
 
           // Save to LocalStorage
-          localStorage.setItem(localStorageKey, val);
+          localStorage.setItem(localStorageKey, val.toString());
           setDailyBaseline(val);
         } else {
           console.warn("First item value is NaN:", firstItem);
@@ -245,13 +262,25 @@ const ControlPanel = () => {
 
       // 1. Check LocalStorage
       const cachedBaseline = localStorage.getItem(localStorageKey);
-      if (cachedBaseline) {
-        console.log(
-          "Using cached monthly baseline from LocalStorage:",
-          cachedBaseline
-        );
-        setMonthlyBaseline(parseFloat(cachedBaseline));
-        return;
+      if (
+        cachedBaseline &&
+        cachedBaseline !== "undefined" &&
+        cachedBaseline !== "NaN"
+      ) {
+        const parsed = parseFloat(cachedBaseline);
+        if (!isNaN(parsed)) {
+          console.log(
+            "Using cached monthly baseline from LocalStorage:",
+            parsed
+          );
+          setMonthlyBaseline(parsed);
+          return;
+        }
+      }
+
+      // Clear invalid cache
+      if (cachedBaseline === "undefined" || cachedBaseline === "NaN") {
+        localStorage.removeItem(localStorageKey);
       }
 
       // 2. Check Firebase
@@ -268,8 +297,11 @@ const ControlPanel = () => {
           `Monthly baseline for ${acId} not found in Firebase. Fetching from E-RA...`
         );
 
-        let configId = ac?.eraConfigId || getPowerConsumptionConfigId();
-        if (!configId) configId = 101076; // Default fallback
+        let configId = ac?.eraConfigId;
+        if (!configId) {
+          console.warn("No E-RA Config ID found for AC:", acId);
+          return;
+        }
 
         // Fetch from 00:00 to 00:02 of the first day of the month
         const dateFrom = `${firstDayOfMonth}T00:00:00`;
@@ -313,7 +345,7 @@ const ControlPanel = () => {
 
       if (val !== null) {
         console.log("Using monthly baseline:", val);
-        localStorage.setItem(localStorageKey, val);
+        localStorage.setItem(localStorageKey, val.toString());
         setMonthlyBaseline(val);
         return;
       }
@@ -350,7 +382,7 @@ const ControlPanel = () => {
     if (localEraValues?.powerConsumption) {
       const currentKwh = parseFloat(localEraValues.powerConsumption);
 
-      if (dailyBaseline !== null) {
+      if (dailyBaseline !== null && !isNaN(dailyBaseline)) {
         const dailyKwh = Math.max(0, currentKwh - dailyBaseline);
         setStats((prev) => ({
           ...prev,
@@ -358,7 +390,7 @@ const ControlPanel = () => {
         }));
       }
 
-      if (monthlyBaseline !== null) {
+      if (monthlyBaseline !== null && !isNaN(monthlyBaseline)) {
         const monthlyKwh = Math.max(0, currentKwh - monthlyBaseline);
         console.log(
           `Calculating monthly consumption: Current=${currentKwh}, Baseline=${monthlyBaseline}, Result=${monthlyKwh}`
@@ -383,8 +415,12 @@ const ControlPanel = () => {
   // Load Chart Data and Other Stats (Weekly, Monthly)
   useEffect(() => {
     const loadChartAndStats = async () => {
-      let configId = ac?.eraConfigId || getPowerConsumptionConfigId();
-      if (!configId) configId = 101076;
+      let configId = ac?.eraConfigId;
+      if (!configId) {
+        console.warn("ControlPanel: Missing eraConfigId for AC:", acId);
+        // If no config ID, we can't fetch chart data
+        return;
+      }
 
       // 1. Load Chart Data
       let chartData = [];
@@ -401,15 +437,18 @@ const ControlPanel = () => {
           const data = await getDailyPowerData(acId, dateStr);
           let kwh = 0;
 
-          if (data && data.beginPW !== undefined) {
-            if (data.endPW) {
+          if (data && data.beginPW !== undefined && !isNaN(data.beginPW)) {
+            if (data.endPW && !isNaN(data.endPW)) {
               kwh = data.endPW - data.beginPW;
             } else if (
               dateStr === format(new Date(), "yyyy-MM-dd") &&
               localEraValues?.powerConsumption
             ) {
               // Today: use current value if endPW not set
-              kwh = parseFloat(localEraValues.powerConsumption) - data.beginPW;
+              const current = parseFloat(localEraValues.powerConsumption);
+              if (!isNaN(current)) {
+                kwh = current - data.beginPW;
+              }
             }
           }
 
@@ -422,11 +461,16 @@ const ControlPanel = () => {
         chartData = await Promise.all(promises);
       } else {
         const { date_from, date_to } = getDateRange(chartPeriod, selectedDate);
+        console.log("Fetching history for:", { configId, date_from, date_to });
+
         const historyData = await getHistoryValueV3(
           configId,
           date_from,
           date_to
         );
+
+        console.log("History data received:", historyData?.length);
+
         const result = processConsumptionData(historyData, chartPeriod, {
           date_from,
           date_to,
@@ -459,7 +503,6 @@ const ControlPanel = () => {
         // monthly is calculated via baseline subtraction in another useEffect
       }));
     };
-
     loadChartAndStats();
   }, [acId, chartPeriod, selectedDate, ac]);
 
@@ -469,7 +512,8 @@ const ControlPanel = () => {
       chartPeriod === "week" &&
       energyHistory.length > 0 &&
       localEraValues?.powerConsumption &&
-      dailyBaseline !== null
+      dailyBaseline !== null &&
+      !isNaN(dailyBaseline)
     ) {
       const todayStr = format(new Date(), "yyyy-MM-dd");
       const currentKwh = Math.max(
