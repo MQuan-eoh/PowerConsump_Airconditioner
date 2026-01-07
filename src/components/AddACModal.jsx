@@ -7,14 +7,14 @@ import "./AddACModal.css";
 import "./ConfigMappingModal.css";
 
 const MAPPING_FIELDS = [
-  { key: "targetTemp", label: "Target Temperature" },
-  { key: "currentTemp", label: "Current Temperature" },
-  { key: "mode", label: "Operational Mode" },
-  { key: "fanSpeed", label: "Fan Speed" },
-  { key: "power", label: "Power State (On/Off)" },
-  { key: "current", label: "Current (Amperes)" },
-  { key: "voltage", label: "Voltage (Volts)" },
-  { key: "powerConsumption", label: "Power Consumption (kWh)" },
+  { key: "targetTemp", label: "Nhiệt độ điều hòa" },
+  { key: "currentTemp", label: "Nhiệt độ phòng" },
+  { key: "mode", label: "Mode hoạt động" },
+  { key: "fanSpeed", label: "Tốc độ quạt" },
+  { key: "power", label: "Trạng thái nguồn (Bật/Tắt)" },
+  { key: "current", label: "Dòng điện (Ampe)" },
+  { key: "voltage", label: "Điện áp (Volt)" },
+  { key: "powerConsumption", label: "Tiêu thụ điện (kWh)" },
 ];
 
 const AddACModal = ({ onClose, onAdd }) => {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { format, startOfMonth } from "date-fns";
+import { useMqttData } from "../contexts/MqttContext";
 import {
   subscribeToACUnits,
   createACUnit,
@@ -33,6 +34,39 @@ const Dashboard = () => {
 
     return () => unsubscribe();
   }, []);
+
+  const { acLiveStates } = useMqttData();
+
+  const getMergedACs = () => {
+    return acUnits.map((ac) => {
+      const live =
+        acLiveStates && acLiveStates[ac.id] ? acLiveStates[ac.id] : null;
+      if (!live) return ac;
+
+      // Merge Logic: Map Config Keys (from AddACModal) to Display Keys (from ACCard)
+      // Mappings: targetTemp -> temperature, power -> isOn, fanSpeed -> fanMode
+      return {
+        ...ac,
+        ...live, // Overwrite any matching keys directly
+        temperature:
+          live.targetTemp !== undefined ? live.targetTemp : ac.temperature,
+        isOn:
+          live.power !== undefined
+            ? String(live.power) === "1" ||
+              String(live.power).toLowerCase() === "true" ||
+              String(live.power) === "on"
+            : ac.isOn,
+        fanMode: live.fanSpeed !== undefined ? live.fanSpeed : ac.fanMode,
+        // Assume online if we have live data recently
+        isOnline: live.lastUpdated
+          ? Date.now() - live.lastUpdated < 120000
+          : ac.isOnline, // 2 mins timeout
+        currentTemp: live.currentTemp, // Pass this through even if ACCard doesn't use it yet
+      };
+    });
+  };
+
+  const displayACUnits = getMergedACs();
 
   const handleAddAC = async (acData) => {
     await createACUnit(acData);
@@ -309,7 +343,7 @@ const Dashboard = () => {
             </button>
           </div>
         ) : (
-          acUnits.map((ac, index) => (
+          displayACUnits.map((ac, index) => (
             <motion.div
               key={ac.id}
               initial={{ opacity: 0, y: 20 }}

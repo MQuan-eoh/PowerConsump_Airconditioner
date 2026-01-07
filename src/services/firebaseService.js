@@ -36,10 +36,8 @@ export const createACUnit = async (acData) => {
 
     // Integration
     isEraLinked: acData.isEraLinked || false,
-    eraConfigId: acData.eraConfigId || null,
-    voltageId: acData.voltageId || null,
-    currentId: acData.currentId || null,
-    tempId: acData.tempId || null,
+    chipId: acData.chipId || null, // The Token
+    configMapping: acData.configMapping || {}, // Store the JSON mapping here
 
     // Current state
     isOnline: false,
