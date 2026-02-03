@@ -80,8 +80,8 @@ const CustomLabel = (props) => {
 
   let fill = "var(--accent-yellow)";
 
-  if (period === "week" && index > 0 && data) {
-    const prevValue = data[index - 1].kwh;
+  if (period === "week" && index > 0 && data && data[index - 1]) {
+    const prevValue = data[index - 1].kwh || 0;
     if (value > prevValue) {
       fill = "var(--accent-red)";
     } else if (value < prevValue) {

@@ -9,9 +9,16 @@ import {
   saveDailyEndValue,
   getDailyBaseline,
   getDailyPowerData,
+  getHourlyEnergyData,
+  getRangeEnergyHistory,
 } from "../services/firebaseService";
-import { getHistoryValueV3 } from "../services/eraService";
-import { format, startOfMonth, startOfWeek, addDays, parseISO } from "date-fns";
+import { 
+  getHistoryValueV3,
+  getHourlyConsumptionFromEra,
+  getDailyConsumptionFromEra,
+  getWeeklyConsumptionFromEra
+} from "../services/eraService";
+import { format, startOfMonth, startOfWeek, addDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useEra } from "../contexts/EraContext";
@@ -58,19 +65,27 @@ const ControlPanel = () => {
   const [ac, setAC] = useState(null);
 
   // Construct local era values based on AC specific IDs
+  // Try direct IDs first, then fallback to configMapping values
   const localEraValues = useMemo(
-    () => ({
-      ...eraValues,
-      currentTemperature:
-        (ac?.tempId && getValueById(ac.tempId)) ?? eraValues.currentTemperature,
-      voltage:
-        (ac?.voltageId && getValueById(ac.voltageId)) ?? eraValues.voltage,
-      current:
-        (ac?.currentId && getValueById(ac.currentId)) ?? eraValues.current,
-      powerConsumption:
-        (ac?.eraConfigId && getValueById(ac.eraConfigId)) ??
-        eraValues.powerConsumption,
-    }),
+    () => {
+      const tempId = ac?.tempId || ac?.configMapping?.currentTemp;
+      const voltageId = ac?.voltageId || ac?.configMapping?.voltage;
+      const currentId = ac?.currentId || ac?.configMapping?.current;
+      const powerConsumptionId = ac?.eraConfigId || ac?.configMapping?.powerConsumption;
+      
+      return {
+        ...eraValues,
+        currentTemperature:
+          (tempId && getValueById(parseInt(tempId))) ?? eraValues.currentTemperature,
+        voltage:
+          (voltageId && getValueById(parseInt(voltageId))) ?? eraValues.voltage,
+        current:
+          (currentId && getValueById(parseInt(currentId))) ?? eraValues.current,
+        powerConsumption:
+          (powerConsumptionId && getValueById(parseInt(powerConsumptionId))) ??
+          eraValues.powerConsumption,
+      };
+    },
     [eraValues, ac, getValueById]
   );
 
@@ -189,18 +204,20 @@ const ControlPanel = () => {
         return;
       }
 
-      let configId = ac?.eraConfigId;
+      // Try eraConfigId first, then fallback to configMapping.powerConsumption
+      let configId = ac?.eraConfigId || ac?.configMapping?.powerConsumption;
       if (!configId) {
         console.warn("No E-RA Config ID found for AC:", acId);
         return;
       }
+      configId = parseInt(configId);
 
-      // Fetch from 00:00 to 00:02 to get the baseline
+      // Fetch from 00:00 to 01:00 to get the baseline (extended range for devices with infrequent updates)
       const dateFrom = `${todayStr}T00:00:00`;
-      const dateTo = `${todayStr}T00:02:00`;
+      const dateTo = `${todayStr}T01:00:00`;
 
       console.log(
-        "Fetching baseline from E-RA (00:00 - 00:02):",
+        "Fetching baseline from E-RA (00:00 - 01:00):",
         dateFrom,
         "to",
         dateTo
@@ -245,6 +262,21 @@ const ControlPanel = () => {
         }
       } else {
         console.warn("No history data found for today to establish baseline.");
+        // Fallback: Use current powerConsumption as baseline if available
+        if (localEraValues?.powerConsumption) {
+          const fallbackVal = parseFloat(localEraValues.powerConsumption);
+          if (!isNaN(fallbackVal)) {
+            console.log("Using current powerConsumption as fallback baseline:", fallbackVal);
+            try {
+              await saveDailyBaseline(acId, todayStr, fallbackVal);
+              console.log("Saved fallback baseline to Firebase successfully.");
+            } catch (err) {
+              console.error("Failed to save fallback baseline to Firebase:", err);
+            }
+            localStorage.setItem(localStorageKey, fallbackVal.toString());
+            setDailyBaseline(fallbackVal);
+          }
+        }
       }
     };
 
@@ -297,15 +329,17 @@ const ControlPanel = () => {
           `Monthly baseline for ${acId} not found in Firebase. Fetching from E-RA...`
         );
 
-        let configId = ac?.eraConfigId;
+        // Try eraConfigId first, then fallback to configMapping.powerConsumption
+        let configId = ac?.eraConfigId || ac?.configMapping?.powerConsumption;
         if (!configId) {
           console.warn("No E-RA Config ID found for AC:", acId);
           return;
         }
+        configId = parseInt(configId);
 
-        // Fetch from 00:00 to 00:02 of the first day of the month
+        // Fetch from 00:00 to 01:00 of the first day of the month (extended range)
         const dateFrom = `${firstDayOfMonth}T00:00:00`;
-        const dateTo = `${firstDayOfMonth}T00:02:00`;
+        const dateTo = `${firstDayOfMonth}T01:00:00`;
 
         try {
           const historyData = await getHistoryValueV3(
@@ -415,96 +449,113 @@ const ControlPanel = () => {
   // Load Chart Data and Other Stats (Weekly, Monthly)
   useEffect(() => {
     const loadChartAndStats = async () => {
-      let configId = ac?.eraConfigId;
+      // Get the config ID for E-RA API calls
+      const configId = ac?.eraConfigId || ac?.configMapping?.powerConsumption;
+      
       if (!configId) {
-        console.warn("ControlPanel: Missing eraConfigId for AC:", acId);
-        // If no config ID, we can't fetch chart data
+        console.warn("No E-RA Config ID found, cannot load chart data from E-RA");
         return;
       }
-
+      
+      const configIdNum = parseInt(configId);
+      console.log("Loading chart and stats with configId:", configIdNum);
+      
       // 1. Load Chart Data
       let chartData = [];
 
-      if (chartPeriod === "week") {
-        // Use Firebase Daily Data for Week View
-        const days = [];
-        const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
-        for (let i = 0; i < 7; i++) {
-          days.push(format(addDays(start, i), "yyyy-MM-dd"));
-        }
-
-        const promises = days.map(async (dateStr) => {
-          const data = await getDailyPowerData(acId, dateStr);
-          let kwh = 0;
-
-          if (data && data.beginPW !== undefined && !isNaN(data.beginPW)) {
-            if (data.endPW && !isNaN(data.endPW)) {
-              kwh = data.endPW - data.beginPW;
-            } else if (
-              dateStr === format(new Date(), "yyyy-MM-dd") &&
-              localEraValues?.powerConsumption
-            ) {
-              // Today: use current value if endPW not set
+      try {
+        if (chartPeriod === "week") {
+           // Fetch weekly data from E-RA API
+           const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
+           
+           console.log("Fetching week history from E-RA:", { start: format(start, 'yyyy-MM-dd') });
+           chartData = await getWeeklyConsumptionFromEra(configIdNum, start);
+           console.log("Week history from E-RA:", chartData);
+           
+           // Update today's value with real-time consumption
+           const todayStr = format(new Date(), "yyyy-MM-dd");
+           if (dailyBaseline !== null && !isNaN(dailyBaseline) && localEraValues?.powerConsumption) {
               const current = parseFloat(localEraValues.powerConsumption);
-              if (!isNaN(current)) {
-                kwh = current - data.beginPW;
-              }
-            }
-          }
-
-          return {
-            date: dateStr,
-            kwh: Math.max(0, kwh),
-          };
-        });
-
-        chartData = await Promise.all(promises);
-      } else {
-        const { date_from, date_to } = getDateRange(chartPeriod, selectedDate);
-        console.log("Fetching history for:", { configId, date_from, date_to });
-
-        const historyData = await getHistoryValueV3(
-          configId,
-          date_from,
-          date_to
-        );
-
-        console.log("History data received:", historyData?.length);
-
-        const result = processConsumptionData(historyData, chartPeriod, {
-          date_from,
-          date_to,
-        });
-        chartData = result.chartData;
+              chartData.forEach(item => {
+                 if (item.date === todayStr) {
+                    const realtimeKwh = Math.max(0, current - dailyBaseline);
+                    console.log(`Updating today's kWh: ERA=${item.kwh}, Realtime=${realtimeKwh}`);
+                    item.kwh = realtimeKwh; // Use real-time value for today
+                 }
+              });
+           }
+           
+        } else if (chartPeriod === "month") {
+           // For month view, we'll fetch week by week to optimize API calls
+           const start = startOfMonth(selectedDate);
+           const end = addDays(startOfMonth(addDays(start, 32)), -1); // End of month
+           const daysInMonth = end.getDate();
+           
+           console.log("Fetching month history from E-RA:", { start: format(start, 'yyyy-MM-dd'), end: format(end, 'yyyy-MM-dd') });
+           
+           // Fetch daily consumption for each day in the month
+           chartData = [];
+           for (let i = 0; i < daysInMonth; i++) {
+             const date = new Date(start);
+             date.setDate(date.getDate() + i);
+             const dateStr = format(date, 'yyyy-MM-dd');
+             const kwh = await getDailyConsumptionFromEra(configIdNum, date);
+             chartData.push({ date: dateStr, kwh });
+           }
+           
+           console.log("Month history from E-RA:", chartData);
+           
+           // Update today's value with real-time consumption
+           const todayStr = format(new Date(), "yyyy-MM-dd");
+           if (dailyBaseline !== null && !isNaN(dailyBaseline) && localEraValues?.powerConsumption) {
+              const current = parseFloat(localEraValues.powerConsumption);
+              chartData.forEach(item => {
+                 if (item.date === todayStr) {
+                    item.kwh = Math.max(0, current - dailyBaseline);
+                 }
+              });
+           }
+           
+        } else {
+          // Day View - Fetch hourly consumption from E-RA API
+          console.log("Fetching hourly consumption from E-RA for:", format(selectedDate, 'yyyy-MM-dd'));
+          chartData = await getHourlyConsumptionFromEra(configIdNum, selectedDate);
+          console.log("Hourly data from E-RA:", chartData);
+        }
+      } catch (err) {
+        console.error("Error loading chart data from E-RA:", err);
       }
 
       setEnergyHistory(chartData);
 
-      // 2. Load Weekly Stats (Monthly is handled by baseline calculation)
-      // We only need to do this once or when period changes, but doing it here is fine.
-      // Note: Daily and Monthly stats are handled by the real-time effect above.
-      const periods = ["week"];
-      const statsPromises = periods.map(async (p) => {
-        const range = getDateRange(p);
-        const data = await getHistoryValueV3(
-          configId,
-          range.date_from,
-          range.date_to
-        );
-        const { total } = processConsumptionData(data, p);
-        return { period: p, total };
-      });
-
-      const statsResults = await Promise.all(statsPromises);
-
-      setStats((prev) => ({
-        ...prev,
-        weekly: statsResults.find((s) => s.period === "week")?.total || 0,
-        // monthly is calculated via baseline subtraction in another useEffect
-      }));
+      // 2. Weekly Stats - Always fetch from E-RA for accuracy
+      try {
+        const now = new Date();
+        const wStart = startOfWeek(now, { weekStartsOn: 1 });
+        console.log("Fetching weekly stats from E-RA:", { start: format(wStart, 'yyyy-MM-dd') });
+        
+        const wHistory = await getWeeklyConsumptionFromEra(configIdNum, wStart);
+        
+        // Update today's value with real-time
+        const todayStr = format(new Date(), "yyyy-MM-dd");
+        if (dailyBaseline !== null && !isNaN(dailyBaseline) && localEraValues?.powerConsumption) {
+          const current = parseFloat(localEraValues.powerConsumption);
+          wHistory.forEach(item => {
+            if (item.date === todayStr) {
+              item.kwh = Math.max(0, current - dailyBaseline);
+            }
+          });
+        }
+        
+        const weeklyTotal = wHistory.reduce((acc, curr) => acc + (curr.kwh || 0), 0);
+        console.log("Weekly total from E-RA:", weeklyTotal);
+        setStats(prev => ({ ...prev, weekly: weeklyTotal }));
+      } catch (err) {
+        console.error("Error fetching weekly stats:", err);
+      }
     };
     loadChartAndStats();
-  }, [acId, chartPeriod, selectedDate, ac]);
+  }, [acId, chartPeriod, selectedDate, ac, dailyBaseline, localEraValues?.powerConsumption]);
 
   // Update Today's value in Chart when in Week mode
   useEffect(() => {

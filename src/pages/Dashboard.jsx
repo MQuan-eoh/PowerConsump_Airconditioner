@@ -107,16 +107,19 @@ const Dashboard = () => {
       let val = await getDailyBaseline(id, dateStr);
 
       if (val === null) {
-        let configId = ac.eraConfigId;
+        // Try eraConfigId first, then fallback to configMapping.powerConsumption
+        let configId = ac.eraConfigId || ac.configMapping?.powerConsumption;
 
         if (!configId) {
           // If no config ID, we can't fetch from E-RA.
           // Return 0 or handle as "no data"
           return 0;
         }
+        configId = parseInt(configId);
 
+        // Fetch from 00:00 to 01:00 to get the baseline (extended range for devices with infrequent updates)
         const dateFrom = `${dateStr}T00:00:00`;
-        const dateTo = `${dateStr}T00:02:00`;
+        const dateTo = `${dateStr}T01:00:00`;
 
         try {
           const historyData = await getHistoryValueV3(
@@ -205,12 +208,14 @@ const Dashboard = () => {
 
           // Get Current Value from E-RA
           let currentVal = 0;
-          let configId = ac.eraConfigId;
+          // Try eraConfigId first, then fallback to configMapping.powerConsumption
+          let configId = ac.eraConfigId || ac.configMapping?.powerConsumption;
 
           if (!configId) {
             // No config ID, return 0
             return 0;
           }
+          configId = parseInt(configId);
 
           // Fetch latest value (last 24 hours to ensure we catch it even if device is infrequent)
           const now = new Date();
@@ -241,8 +246,14 @@ const Dashboard = () => {
             }
           }
 
-          const monthlyConsumption = Math.max(0, currentVal - baseline.monthly);
-          const dailyConsumption = Math.max(0, currentVal - baseline.daily);
+          const monthlyConsumption =
+            baseline.monthly !== null && !isNaN(baseline.monthly)
+              ? Math.max(0, currentVal - baseline.monthly)
+              : 0;
+          const dailyConsumption =
+            baseline.daily !== null && !isNaN(baseline.daily)
+              ? Math.max(0, currentVal - baseline.daily)
+              : 0;
 
           newConsumptions[ac.id] = {
             monthly: monthlyConsumption,

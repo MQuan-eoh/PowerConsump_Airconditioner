@@ -148,7 +148,7 @@ export const getStartOfDayReading = async (acId, date = new Date()) => {
   return null;
 };
 
-export const getDailyEnergyData = async (acId, date = new Date()) => {
+export const getHourlyEnergyData = async (acId, date = new Date()) => {
   const dateKey = format(date, "yyyy-MM-dd");
   const snapshot = await get(
     ref(database, `energy_readings/${acId}/${dateKey}`)
@@ -157,6 +157,48 @@ export const getDailyEnergyData = async (acId, date = new Date()) => {
     return snapshot.val();
   }
   return {};
+};
+
+export const getRangeEnergyHistory = async (acId, startDate, endDate) => {
+  const history = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  // Iterate from start to end date
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateKey = format(d, "yyyy-MM-dd");
+    
+    // 1. Try daily_consumption (Total Calculated)
+    const consumptionSnapshot = await get(
+      ref(database, `daily_consumption/${acId}/${dateKey}`)
+    );
+    
+    let kwh = 0;
+    
+    if (consumptionSnapshot.exists()) {
+       kwh = consumptionSnapshot.val().totalKwh || 0;
+    } else {
+       // 2. Fallback to daily_powerConsumption (Begin/End)
+       const powerSnapshot = await get(
+         ref(database, `daily_powerConsumption/${acId}/${dateKey}`)
+       );
+       
+       if (powerSnapshot.exists()) {
+          const val = powerSnapshot.val();
+          if (typeof val === "number") {
+             kwh = 0; 
+          } else if (val && val.beginPW !== undefined && val.endPW !== undefined) {
+             kwh = Math.max(0, val.endPW - val.beginPW);
+          }
+       }
+    }
+    
+    history.push({
+      date: dateKey,
+      kwh: kwh,
+    });
+  }
+  return history;
 };
 
 export const getEnergyHistory = async (acId, days = 7) => {
@@ -195,6 +237,16 @@ export const recordDailyConsumption = async (acId, date, totalKwh) => {
   // Update monthly aggregation
   const monthlyRef = ref(database, `monthly_consumption/${acId}/${monthKey}`);
   const monthlySnapshot = await get(monthlyRef);
+  
+  // CAUTION: This additive logic might be wrong if we just want to SET the totally daily sum
+  // If recordDailyConsumption is called once per day with the TOTAL for that day, 
+  // we shouldn't simple ADD to the monthly total without checking if we already added it?
+  // Or maybe this function is called incrementally? 
+  // Based on "totalKwh" name, it sounds like the total for the day.
+  // Implementation of monthly/yearly aggregation on the client side is risky. 
+  // For now, I will leave the existing aggregation logic as is to avoid breaking existing flows,
+  // but I'll focus on reading data correctly.
+  
   const currentMonthly = monthlySnapshot.exists()
     ? monthlySnapshot.val().totalKwh
     : 0;
@@ -424,7 +476,7 @@ export const getDailyBaseline = async (acId, dateStr) => {
         );
         return null;
       }
-      return val.beginPW;
+      return val.beginPW !== undefined ? val.beginPW : null;
     }
     return val;
   }

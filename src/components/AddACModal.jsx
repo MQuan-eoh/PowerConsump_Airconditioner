@@ -110,6 +110,9 @@ const AddACModal = ({ onClose, onAdd }) => {
     }
 
     // Final submission (from step 2)
+    // Also set the individual config IDs for lookup:
+    // - eraConfigId: Power Consumption ID (most important for kWh tracking)
+    // - voltageId, currentId, tempId: Other sensor IDs
     onAdd({
       ...formData,
       roomArea: parseFloat(formData.roomArea) || 0,
@@ -117,6 +120,11 @@ const AddACModal = ({ onClose, onAdd }) => {
       power: parseInt(formData.power) || 1000,
       chipId: selectedChipId,
       configMapping: mappings,
+      // Set eraConfigId from powerConsumption mapping for energy consumption tracking
+      eraConfigId: mappings.powerConsumption ? parseInt(mappings.powerConsumption) : null,
+      voltageId: mappings.voltage ? parseInt(mappings.voltage) : null,
+      currentId: mappings.current ? parseInt(mappings.current) : null,
+      tempId: mappings.currentTemp ? parseInt(mappings.currentTemp) : null,
     });
   };
 

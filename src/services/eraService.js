@@ -544,7 +544,6 @@ export const cleanupEraWidget = () => {
  */
 export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
   try {
-    // Use relative URL to leverage Vite proxy (avoids CORS issues)
     const url = `/api/chip_manager/configs/value_history_v3/?configs=${configId}&date_from=${encodeURIComponent(
       dateFrom
     )}&date_to=${encodeURIComponent(dateTo)}`;
@@ -620,6 +619,216 @@ export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
     console.error("EraService: Error fetching history:", error);
     return [];
   }
+};
+
+/**
+ * Get hourly energy consumption for a specific day from E-RA API
+ * @param {number} configId - The power consumption config ID
+ * @param {Date} date - The date to fetch (defaults to today)
+ * @returns {Promise<Array>} - Array of { hour: "00", kwh: 0.5 }
+ */
+export const getHourlyConsumptionFromEra = async (configId, date = new Date()) => {
+  const dateStr = date.toISOString().split('T')[0]; // yyyy-MM-dd
+  const now = new Date();
+  const isToday = dateStr === now.toISOString().split('T')[0];
+  
+  // If today, fetch until current time; otherwise fetch full day
+  const endTime = isToday 
+    ? `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:00`
+    : '23:59:59';
+  
+  const dateFrom = `${dateStr}T00:00:00`;
+  const dateTo = `${dateStr}T${endTime}`;
+  
+  console.log(`EraService: Fetching hourly consumption for ${dateStr} from ${dateFrom} to ${dateTo}`);
+  
+  try {
+    const historyData = await getHistoryValueV3(configId, dateFrom, dateTo);
+    
+    if (!historyData || historyData.length === 0) {
+      console.log("EraService: No history data found for hourly consumption");
+      return [];
+    }
+    
+    // Sort by time ascending
+    const sortedData = [...historyData].sort((a, b) => {
+      const dateA = new Date(a.created_at || a.x);
+      const dateB = new Date(b.created_at || b.x);
+      return dateA - dateB;
+    });
+    
+    // Group by hour and calculate consumption
+    const hourlyData = {};
+    let previousVal = null;
+    
+    for (const item of sortedData) {
+      const timestamp = new Date(item.created_at || item.x);
+      const hour = timestamp.getHours().toString().padStart(2, '0');
+      const val = parseFloat(item.val !== undefined ? item.val : item.y);
+      
+      if (isNaN(val)) continue;
+      
+      // Store the latest value for each hour
+      if (!hourlyData[hour]) {
+        hourlyData[hour] = { startVal: val, endVal: val };
+      } else {
+        hourlyData[hour].endVal = val;
+      }
+    }
+    
+    // Calculate consumption for each hour
+    const result = [];
+    const hours = Object.keys(hourlyData).sort();
+    
+    for (let i = 0; i < hours.length; i++) {
+      const hour = hours[i];
+      const data = hourlyData[hour];
+      
+      // For the first hour, use the start value as baseline
+      if (i === 0) {
+        previousVal = data.startVal;
+      }
+      
+      // Consumption = end value of this hour - previous value
+      const consumption = Math.max(0, data.endVal - previousVal);
+      
+      result.push({
+        hour: hour,
+        date: `${hour}:00`,
+        kwh: consumption,
+        rawStart: data.startVal,
+        rawEnd: data.endVal
+      });
+      
+      previousVal = data.endVal;
+    }
+    
+    // Fill in missing hours with 0
+    const fullResult = [];
+    for (let h = 0; h < 24; h++) {
+      const hourStr = h.toString().padStart(2, '0');
+      const existing = result.find(r => r.hour === hourStr);
+      
+      if (existing) {
+        fullResult.push(existing);
+      } else {
+        fullResult.push({
+          hour: hourStr,
+          date: `${hourStr}:00`,
+          kwh: 0
+        });
+      }
+    }
+    
+    console.log("EraService: Hourly consumption calculated:", fullResult);
+    return fullResult;
+    
+  } catch (error) {
+    console.error("EraService: Error calculating hourly consumption:", error);
+    return [];
+  }
+};
+
+/**
+ * Get daily energy consumption for a specific day from E-RA API
+ * @param {number} configId - The power consumption config ID
+ * @param {Date} date - The date to calculate
+ * @returns {Promise<number>} - Daily kWh consumption
+ */
+export const getDailyConsumptionFromEra = async (configId, date) => {
+  const dateStr = date.toISOString().split('T')[0]; // yyyy-MM-dd
+  const now = new Date();
+  const isToday = dateStr === now.toISOString().split('T')[0];
+  
+  try {
+    // Get start of day value (00:00 - 01:00)
+    const startFrom = `${dateStr}T00:00:00`;
+    const startTo = `${dateStr}T01:00:00`;
+    const startHistory = await getHistoryValueV3(configId, startFrom, startTo);
+    
+    let startVal = null;
+    if (startHistory && startHistory.length > 0) {
+      // Get the earliest value
+      const sorted = [...startHistory].sort((a, b) => {
+        return new Date(a.created_at || a.x) - new Date(b.created_at || b.x);
+      });
+      startVal = parseFloat(sorted[0].val !== undefined ? sorted[0].val : sorted[0].y);
+    }
+    
+    if (startVal === null || isNaN(startVal)) {
+      console.log(`EraService: No start-of-day value found for ${dateStr}`);
+      return 0;
+    }
+    
+    // Get end of day value
+    let endVal = null;
+    
+    if (isToday) {
+      // For today, get the latest value
+      const endFrom = `${dateStr}T${now.getHours().toString().padStart(2, '0')}:00:00`;
+      const endTo = `${dateStr}T${now.getHours().toString().padStart(2, '0')}:59:59`;
+      const endHistory = await getHistoryValueV3(configId, endFrom, endTo);
+      
+      if (endHistory && endHistory.length > 0) {
+        const sorted = [...endHistory].sort((a, b) => {
+          return new Date(b.created_at || b.x) - new Date(a.created_at || a.x);
+        });
+        endVal = parseFloat(sorted[0].val !== undefined ? sorted[0].val : sorted[0].y);
+      }
+    } else {
+      // For past days, get end of day (23:00 - 23:59)
+      const endFrom = `${dateStr}T23:00:00`;
+      const endTo = `${dateStr}T23:59:59`;
+      const endHistory = await getHistoryValueV3(configId, endFrom, endTo);
+      
+      if (endHistory && endHistory.length > 0) {
+        const sorted = [...endHistory].sort((a, b) => {
+          return new Date(b.created_at || b.x) - new Date(a.created_at || a.x);
+        });
+        endVal = parseFloat(sorted[0].val !== undefined ? sorted[0].val : sorted[0].y);
+      }
+    }
+    
+    if (endVal === null || isNaN(endVal)) {
+      console.log(`EraService: No end-of-day value found for ${dateStr}`);
+      return 0;
+    }
+    
+    const consumption = Math.max(0, endVal - startVal);
+    console.log(`EraService: Daily consumption for ${dateStr}: ${consumption} kWh (${startVal} -> ${endVal})`);
+    
+    return consumption;
+    
+  } catch (error) {
+    console.error(`EraService: Error calculating daily consumption for ${date}:`, error);
+    return 0;
+  }
+};
+
+/**
+ * Get weekly energy consumption from E-RA API
+ * @param {number} configId - The power consumption config ID
+ * @param {Date} startDate - Start of the week
+ * @returns {Promise<Array>} - Array of { date: "yyyy-MM-dd", kwh: 5.2 }
+ */
+export const getWeeklyConsumptionFromEra = async (configId, startDate) => {
+  const result = [];
+  
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    
+    const dateStr = date.toISOString().split('T')[0];
+    const kwh = await getDailyConsumptionFromEra(configId, date);
+    
+    result.push({
+      date: dateStr,
+      kwh: kwh
+    });
+  }
+  
+  console.log("EraService: Weekly consumption calculated:", result);
+  return result;
 };
 
 /**
