@@ -450,16 +450,29 @@ export const saveDailyEndValue = async (acId, dateStr, value) => {
   const refPath = `daily_powerConsumption/${acId}/${dateStr}`;
   const snapshot = await get(ref(database, refPath));
 
-  if (snapshot.exists() && typeof snapshot.val() === "number") {
+  const existingData = snapshot.exists() ? snapshot.val() : null;
+
+  if (typeof existingData === "number") {
     // Migrate legacy number to object, assuming existing value is beginPW
     await set(ref(database, refPath), {
-      beginPW: snapshot.val(),
+      beginPW: existingData,
       endPW: value,
       acId,
     });
-  } else {
-    // Update existing object or create new
+  } else if (existingData && existingData.beginPW !== undefined) {
+    // Already has beginPW, just update endPW
     await update(ref(database, refPath), { endPW: value, acId });
+  } else {
+    // FIX: If beginPW doesn't exist, set both beginPW and endPW
+    // This handles the case where first data arrives before baseline fetch completed
+    await set(ref(database, refPath), {
+      beginPW: value, // Use first value as baseline
+      endPW: value,
+      acId,
+    });
+    console.log(
+      `[Firebase] First write of day: Set beginPW = endPW = ${value} for ${acId} on ${dateStr}`
+    );
   }
 };
 

@@ -16,7 +16,8 @@ import {
   getHistoryValueV3,
   getHourlyConsumptionFromEra,
   getDailyConsumptionFromEra,
-  getWeeklyConsumptionFromEra
+  getWeeklyConsumptionFromEra,
+  getStartOfDayValueFromEra
 } from "../services/eraService";
 import { format, startOfMonth, startOfWeek, addDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
@@ -176,10 +177,26 @@ const ControlPanel = () => {
         cachedBaseline !== "NaN"
       ) {
         const parsed = parseFloat(cachedBaseline);
-        if (!isNaN(parsed)) {
+        // FIX: Also validate that cached value > 0 (0 is invalid for active power meters)
+        if (!isNaN(parsed) && parsed > 0) {
           console.log("Using cached baseline from LocalStorage:", parsed);
           setDailyBaseline(parsed);
+          
+          // FIX: Also ensure Firebase has this value (sync localStorage -> Firebase)
+          const firebaseData = await getDailyPowerData(acId, todayStr);
+          if (!firebaseData || firebaseData.beginPW === undefined || firebaseData.beginPW === 0) {
+            console.log("Firebase missing/invalid beginPW, syncing from localStorage...");
+            try {
+              await saveDailyBaseline(acId, todayStr, parsed);
+              console.log("Synced baseline to Firebase from localStorage:", parsed);
+            } catch (err) {
+              console.error("Failed to sync baseline to Firebase:", err);
+            }
+          }
           return;
+        } else if (parsed === 0) {
+          console.log("⚠️ Cached baseline is 0 (invalid), clearing cache...");
+          localStorage.removeItem(localStorageKey);
         }
       }
 
@@ -190,11 +207,14 @@ const ControlPanel = () => {
 
       // 2. Check Firebase
       const firebaseBaseline = await getDailyBaseline(acId, todayStr);
-      if (firebaseBaseline !== null) {
+      // FIX: Also validate that Firebase value > 0
+      if (firebaseBaseline !== null && firebaseBaseline > 0) {
         console.log("Using baseline from Firebase:", firebaseBaseline);
         localStorage.setItem(localStorageKey, firebaseBaseline);
         setDailyBaseline(firebaseBaseline);
         return;
+      } else if (firebaseBaseline === 0) {
+        console.log("⚠️ Firebase baseline is 0 (invalid), will fetch from E-RA...");
       }
 
       // 3. Fetch from E-RA API (00:00 - 00:02)
@@ -212,12 +232,13 @@ const ControlPanel = () => {
       }
       configId = parseInt(configId);
 
-      // Fetch from 00:00 to 01:00 to get the baseline (extended range for devices with infrequent updates)
+      // Fetch from 00:00 to 23:59 to find the earliest data point of the day
+      // This ensures we catch devices that started late in the day
       const dateFrom = `${todayStr}T00:00:00`;
-      const dateTo = `${todayStr}T01:00:00`;
+      const dateTo = `${todayStr}T23:59:59`;
 
       console.log(
-        "Fetching baseline from E-RA (00:00 - 01:00):",
+        "Fetching baseline from E-RA (00:00 - 23:59):",
         dateFrom,
         "to",
         dateTo
@@ -262,7 +283,6 @@ const ControlPanel = () => {
         }
       } else {
         console.warn("No history data found for today to establish baseline.");
-        // Fallback: Use current powerConsumption as baseline if available
         if (localEraValues?.powerConsumption) {
           const fallbackVal = parseFloat(localEraValues.powerConsumption);
           if (!isNaN(fallbackVal)) {
@@ -283,6 +303,56 @@ const ControlPanel = () => {
     if (acId && ac) {
       fetchBaseline();
     }
+  }, [acId, ac, isEraLinked]);
+
+  // NEW: Explicit sync of beginPW to Firebase using E-RA API
+  useEffect(() => {
+    const syncBeginPWToFirebase = async () => {
+      if (!ac || !acId || !isEraLinked) return;
+
+      const configId = ac?.eraConfigId || ac?.configMapping?.powerConsumption;
+      if (!configId) return;
+
+      const todayStr = format(new Date(), "yyyy-MM-dd");
+      const localStorageKey = `dailyBaseline_${acId}_${todayStr}`;
+      
+      // Check if Firebase already has beginPW for today
+      const existingData = await getDailyPowerData(acId, todayStr);
+      
+      // FIX: Check if beginPW exists AND is valid (not 0, as 0 is invalid for active power meters)
+      if (existingData && existingData.beginPW !== undefined && existingData.beginPW > 0) {
+        console.log("[Sync] Firebase already has valid beginPW:", existingData.beginPW);
+        return; // Already synced with valid value
+      }
+
+      // If beginPW is 0 or missing, we need to fetch the correct value from E-RA
+      if (existingData && existingData.beginPW === 0) {
+        console.log("[Sync] ⚠️ Firebase has invalid beginPW (0), will re-fetch from E-RA...");
+        // Clear localStorage cache as well
+        localStorage.removeItem(localStorageKey);
+      }
+
+      // Fetch beginPW from E-RA API
+      console.log("[Sync] Fetching beginPW from E-RA...");
+      const beginPW = await getStartOfDayValueFromEra(parseInt(configId), new Date());
+      
+      if (beginPW !== null && beginPW > 0) {
+        try {
+          await saveDailyBaseline(acId, todayStr, beginPW);
+          console.log("[Sync] ✅ Saved beginPW to Firebase:", beginPW);
+          
+          // Also update localStorage
+          localStorage.setItem(localStorageKey, beginPW.toString());
+          setDailyBaseline(beginPW);
+        } catch (err) {
+          console.error("[Sync] Failed to save beginPW to Firebase:", err);
+        }
+      } else {
+        console.log("[Sync] No valid beginPW found from E-RA for today");
+      }
+    };
+
+    syncBeginPWToFirebase();
   }, [acId, ac, isEraLinked]);
 
   // Fetch Monthly Baseline
@@ -490,23 +560,31 @@ const ControlPanel = () => {
            const start = startOfMonth(selectedDate);
            const end = addDays(startOfMonth(addDays(start, 32)), -1); // End of month
            const daysInMonth = end.getDate();
+           const now = new Date();
+           const todayStr = format(now, 'yyyy-MM-dd');
            
            console.log("Fetching month history from E-RA:", { start: format(start, 'yyyy-MM-dd'), end: format(end, 'yyyy-MM-dd') });
            
-           // Fetch daily consumption for each day in the month
+           // Fetch daily consumption for each day in the month (only up to today)
            chartData = [];
            for (let i = 0; i < daysInMonth; i++) {
              const date = new Date(start);
              date.setDate(date.getDate() + i);
              const dateStr = format(date, 'yyyy-MM-dd');
-             const kwh = await getDailyConsumptionFromEra(configIdNum, date);
-             chartData.push({ date: dateStr, kwh });
+             
+             // FIX: Only fetch data for past days up to today
+             if (dateStr <= todayStr) {
+               const kwh = await getDailyConsumptionFromEra(configIdNum, date);
+               chartData.push({ date: dateStr, kwh });
+             } else {
+               // Future date - no data yet
+               chartData.push({ date: dateStr, kwh: 0 });
+             }
            }
            
            console.log("Month history from E-RA:", chartData);
            
            // Update today's value with real-time consumption
-           const todayStr = format(new Date(), "yyyy-MM-dd");
            if (dailyBaseline !== null && !isNaN(dailyBaseline) && localEraValues?.powerConsumption) {
               const current = parseFloat(localEraValues.powerConsumption);
               chartData.forEach(item => {

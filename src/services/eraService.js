@@ -730,6 +730,44 @@ export const getHourlyConsumptionFromEra = async (configId, date = new Date()) =
 };
 
 /**
+ * Get the start-of-day (beginPW) value from E-RA API
+ * This value should be saved to Firebase as beginPW
+ * @param {number} configId - The power consumption config ID
+ * @param {Date} date - The date to fetch
+ * @returns {Promise<number|null>} - The start-of-day kWh value or null if not found
+ */
+export const getStartOfDayValueFromEra = async (configId, date) => {
+  const dateStr = date.toISOString().split('T')[0];
+  
+  try {
+    const startFrom = `${dateStr}T00:00:00`;
+    const startTo = `${dateStr}T01:00:00`;
+    
+    console.log(`EraService: Fetching beginPW for ${dateStr} from ${startFrom} to ${startTo}`);
+    const startHistory = await getHistoryValueV3(configId, startFrom, startTo);
+    
+    if (startHistory && startHistory.length > 0) {
+      // Get the earliest value
+      const sorted = [...startHistory].sort((a, b) => {
+        return new Date(a.created_at || a.x) - new Date(b.created_at || b.x);
+      });
+      const startVal = parseFloat(sorted[0].val !== undefined ? sorted[0].val : sorted[0].y);
+      
+      if (!isNaN(startVal)) {
+        console.log(`EraService: Found beginPW for ${dateStr}: ${startVal}`);
+        return startVal;
+      }
+    }
+    
+    console.log(`EraService: No beginPW found for ${dateStr}`);
+    return null;
+  } catch (error) {
+    console.error(`EraService: Error fetching beginPW for ${dateStr}:`, error);
+    return null;
+  }
+};
+
+/**
  * Get daily energy consumption for a specific day from E-RA API
  * @param {number} configId - The power consumption config ID
  * @param {Date} date - The date to calculate
@@ -742,20 +780,9 @@ export const getDailyConsumptionFromEra = async (configId, date) => {
   
   try {
     // Get start of day value (00:00 - 01:00)
-    const startFrom = `${dateStr}T00:00:00`;
-    const startTo = `${dateStr}T01:00:00`;
-    const startHistory = await getHistoryValueV3(configId, startFrom, startTo);
+    const startVal = await getStartOfDayValueFromEra(configId, date);
     
-    let startVal = null;
-    if (startHistory && startHistory.length > 0) {
-      // Get the earliest value
-      const sorted = [...startHistory].sort((a, b) => {
-        return new Date(a.created_at || a.x) - new Date(b.created_at || b.x);
-      });
-      startVal = parseFloat(sorted[0].val !== undefined ? sorted[0].val : sorted[0].y);
-    }
-    
-    if (startVal === null || isNaN(startVal)) {
+    if (startVal === null) {
       console.log(`EraService: No start-of-day value found for ${dateStr}`);
       return 0;
     }
@@ -813,18 +840,29 @@ export const getDailyConsumptionFromEra = async (configId, date) => {
  */
 export const getWeeklyConsumptionFromEra = async (configId, startDate) => {
   const result = [];
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
   
   for (let i = 0; i < 7; i++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + i);
     
     const dateStr = date.toISOString().split('T')[0];
-    const kwh = await getDailyConsumptionFromEra(configId, date);
     
-    result.push({
-      date: dateStr,
-      kwh: kwh
-    });
+    // FIX: Only fetch data for past days up to today, skip future dates
+    if (dateStr <= todayStr) {
+      const kwh = await getDailyConsumptionFromEra(configId, date);
+      result.push({
+        date: dateStr,
+        kwh: kwh
+      });
+    } else {
+      // Future date - no data yet
+      result.push({
+        date: dateStr,
+        kwh: 0
+      });
+    }
   }
   
   console.log("EraService: Weekly consumption calculated:", result);
@@ -950,4 +988,5 @@ export default {
   getValueById,
   fetchUnitChips,
   fetchChipConfigs,
+  getStartOfDayValueFromEra,
 };
