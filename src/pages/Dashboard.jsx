@@ -11,7 +11,7 @@ import {
   getDailyBaseline,
   saveDailyBaseline,
 } from "../services/firebaseService";
-import { getHistoryValueV3 } from "../services/eraService";
+import { getHistoryValueV3, getStartOfDayValueFromEra, getStartOfMonthValueFromEra } from "../services/eraService";
 import { useLanguage } from "../contexts/LanguageContext";
 import ACCard from "../components/ACCard";
 import AddACModal from "../components/AddACModal";
@@ -97,6 +97,7 @@ const Dashboard = () => {
   }, [acUnits]);
 
   // Helper to fetch baseline
+  // Helper to fetch baseline
   const fetchBaseline = async (ac, dateStr) => {
     const id = ac.id;
     try {
@@ -111,47 +112,27 @@ const Dashboard = () => {
         let configId = ac.eraConfigId || ac.configMapping?.powerConsumption;
 
         if (!configId) {
-          // If no config ID, we can't fetch from E-RA.
-          // Return 0 or handle as "no data"
           return 0;
         }
         configId = parseInt(configId);
+        
+        // Determine whether this is a "first day of month" request or a "daily" request
+        const isFirstOfMonth = dateStr.endsWith("-01");
+        const fetchDate = new Date(dateStr + "T00:00:00");
 
-        // Fetch from 00:00 to 01:00 to get the baseline (extended range for devices with infrequent updates)
-        const dateFrom = `${dateStr}T00:00:00`;
-        const dateTo = `${dateStr}T01:00:00`;
+        if (isFirstOfMonth) {
+          val = await getStartOfMonthValueFromEra(configId, fetchDate);
+        } else {
+          val = await getStartOfDayValueFromEra(configId, fetchDate);
+        }
 
-        try {
-          const historyData = await getHistoryValueV3(
-            configId,
-            dateFrom,
-            dateTo
-          );
-
-          if (historyData && historyData.length > 0) {
-            const sortedData = [...historyData].sort((a, b) => {
-              const dateA = new Date(a.created_at || a.x);
-              const dateB = new Date(b.created_at || b.x);
-              return dateA - dateB;
-            });
-
-            const firstItem = sortedData[0];
-            const eraVal = parseFloat(
-              firstItem.val !== undefined ? firstItem.val : firstItem.y
-            );
-
-            if (!isNaN(eraVal)) {
-              val = eraVal;
-              await saveDailyBaseline(id, dateStr, val);
-            }
-          }
-        } catch (eraError) {
-          console.error("Error fetching from E-RA:", eraError);
+        if (val !== null) {
+          await saveDailyBaseline(id, dateStr, val);
         }
       }
 
       const result = val !== null ? val : 0;
-      if (val !== null) localStorage.setItem(cacheKey, val);
+      if (val !== null) localStorage.setItem(cacheKey, val.toString());
       return result;
     } catch (error) {
       console.error(`Error fetching baseline for ${id}:`, error);

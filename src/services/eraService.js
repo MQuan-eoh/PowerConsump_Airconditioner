@@ -536,6 +536,17 @@ export const cleanupEraWidget = () => {
 };
 
 /**
+ * Helper to format date as YYYY-MM-DD in local time
+ * This avoids timezone shift issues with toISOString() which uses UTC
+ * @param {Date} date
+ * @returns {string} YYYY-MM-DD
+ */
+const formatLocalDate = (date) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+/**
  * Get history values from E-RA API
  * @param {number} configId - The configuration ID
  * @param {string} dateFrom - Start date (YYYY-MM-DDTHH:mm:ss)
@@ -628,9 +639,9 @@ export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
  * @returns {Promise<Array>} - Array of { hour: "00", kwh: 0.5 }
  */
 export const getHourlyConsumptionFromEra = async (configId, date = new Date()) => {
-  const dateStr = date.toISOString().split('T')[0]; // yyyy-MM-dd
+  const dateStr = formatLocalDate(date); // yyyy-MM-dd
   const now = new Date();
-  const isToday = dateStr === now.toISOString().split('T')[0];
+  const isToday = dateStr === formatLocalDate(now);
   
   // If today, fetch until current time; otherwise fetch full day
   const endTime = isToday 
@@ -730,6 +741,31 @@ export const getHourlyConsumptionFromEra = async (configId, date = new Date()) =
 };
 
 /**
+ * Get the start-of-period value from E-RA API by scanning a specific timeframe
+ */
+export const getFirstValueInRangeFromEra = async (configId, dateFrom, dateTo) => {
+  try {
+    const historyData = await getHistoryValueV3(configId, dateFrom, dateTo);
+    
+    if (historyData && historyData.length > 0) {
+      // Get the earliest value
+      const sorted = [...historyData].sort((a, b) => {
+        return new Date(a.created_at || a.x) - new Date(b.created_at || b.x);
+      });
+      const startVal = parseFloat(sorted[0].val !== undefined ? sorted[0].val : sorted[0].y);
+      
+      if (!isNaN(startVal)) {
+        return startVal;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error(`EraService: Error fetching first value between ${dateFrom} and ${dateTo}:`, error);
+    return null;
+  }
+};
+
+/**
  * Get the start-of-day (beginPW) value from E-RA API
  * This value should be saved to Firebase as beginPW
  * @param {number} configId - The power consumption config ID
@@ -737,34 +773,83 @@ export const getHourlyConsumptionFromEra = async (configId, date = new Date()) =
  * @returns {Promise<number|null>} - The start-of-day kWh value or null if not found
  */
 export const getStartOfDayValueFromEra = async (configId, date) => {
-  const dateStr = date.toISOString().split('T')[0];
+  const dateStr = formatLocalDate(date);
   
-  try {
-    const startFrom = `${dateStr}T00:00:00`;
-    const startTo = `${dateStr}T01:00:00`;
-    
-    console.log(`EraService: Fetching beginPW for ${dateStr} from ${startFrom} to ${startTo}`);
-    const startHistory = await getHistoryValueV3(configId, startFrom, startTo);
-    
-    if (startHistory && startHistory.length > 0) {
-      // Get the earliest value
-      const sorted = [...startHistory].sort((a, b) => {
-        return new Date(a.created_at || a.x) - new Date(b.created_at || b.x);
-      });
-      const startVal = parseFloat(sorted[0].val !== undefined ? sorted[0].val : sorted[0].y);
-      
-      if (!isNaN(startVal)) {
-        console.log(`EraService: Found beginPW for ${dateStr}: ${startVal}`);
-        return startVal;
-      }
-    }
-    
-    console.log(`EraService: No beginPW found for ${dateStr}`);
-    return null;
-  } catch (error) {
-    console.error(`EraService: Error fetching beginPW for ${dateStr}:`, error);
-    return null;
+  // 1. First attempt: Scan a small 5-minute window (00:00:00 to 00:05:00) for performance
+  const startFrom = `${dateStr}T00:00:00`;
+  const baselineTo = `${dateStr}T00:05:00`;
+  
+  console.log(`EraService: Fetching daily baseline (5-min scan) for ${dateStr}`);
+  let startVal = await getFirstValueInRangeFromEra(configId, startFrom, baselineTo);
+  
+  if (startVal !== null) {
+    console.log(`EraService: Found daily baseline in 5-min window: ${startVal}`);
+    return startVal;
   }
+  
+  // 2. Fallback: Scan the entire day if the 5-min window was empty
+  console.log(`EraService: No data in 5-min window. Scanning entire day for ${dateStr}`);
+  const dayTo = `${dateStr}T23:59:59`;
+  startVal = await getFirstValueInRangeFromEra(configId, startFrom, dayTo);
+  
+  if (startVal !== null) {
+    console.log(`EraService: Found daily baseline in full day scan: ${startVal}`);
+    return startVal;
+  }
+  
+  console.log(`EraService: No daily baseline found for ${dateStr}`);
+  return null;
+};
+
+/**
+ * Get the start-of-month baseline value from E-RA API
+ * @param {number} configId - The power consumption config ID
+ * @param {Date} date - Any date within the target month
+ * @returns {Promise<number|null>} - The start-of-month kWh value or null if not found
+ */
+export const getStartOfMonthValueFromEra = async (configId, date) => {
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+  const firstDayStr = formatLocalDate(firstDay);
+  
+  // 1. First attempt: Scan 5-minute window on the first day of the month
+  const startFrom = `${firstDayStr}T00:00:00`;
+  const baselineTo = `${firstDayStr}T00:05:00`;
+  
+  console.log(`EraService: Fetching monthly baseline (5-min scan) for ${firstDayStr}`);
+  let startVal = await getFirstValueInRangeFromEra(configId, startFrom, baselineTo);
+  
+  if (startVal !== null) {
+    console.log(`EraService: Found monthly baseline in 5-min window: ${startVal}`);
+    return startVal;
+  }
+  
+  // 2. Second attempt: Scan the entire first day
+  console.log(`EraService: No data in 5-min window. Scanning entire first day: ${firstDayStr}`);
+  const firstDayEnd = `${firstDayStr}T23:59:59`;
+  startVal = await getFirstValueInRangeFromEra(configId, startFrom, firstDayEnd);
+  
+  if (startVal !== null) {
+    console.log(`EraService: Found monthly baseline on the first day: ${startVal}`);
+    return startVal;
+  }
+  
+  // 3. Last fallback: Scan first 7 days of the month
+  console.log(`EraService: Scanning first 7 days of the month for baseline...`);
+  const seventhDay = new Date(date.getFullYear(), date.getMonth(), 7);
+  const now = new Date();
+  const endDate = seventhDay > now ? now : seventhDay;
+  const endDateStr = formatLocalDate(endDate);
+  
+  const weekTo = `${endDateStr}T23:59:59`;
+  startVal = await getFirstValueInRangeFromEra(configId, startFrom, weekTo);
+  
+  if (startVal !== null) {
+    console.log(`EraService: Found monthly baseline within the first 7 days: ${startVal}`);
+    return startVal;
+  }
+
+  console.log(`EraService: No monthly baseline found for month starting ${firstDayStr}`);
+  return null;
 };
 
 /**
@@ -989,4 +1074,5 @@ export default {
   fetchUnitChips,
   fetchChipConfigs,
   getStartOfDayValueFromEra,
+  getStartOfMonthValueFromEra,
 };

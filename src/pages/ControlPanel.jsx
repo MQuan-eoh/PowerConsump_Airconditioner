@@ -17,7 +17,8 @@ import {
   getHourlyConsumptionFromEra,
   getDailyConsumptionFromEra,
   getWeeklyConsumptionFromEra,
-  getStartOfDayValueFromEra
+  getStartOfDayValueFromEra,
+  getStartOfMonthValueFromEra
 } from "../services/eraService";
 import { format, startOfMonth, startOfWeek, addDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
@@ -407,38 +408,18 @@ const ControlPanel = () => {
         }
         configId = parseInt(configId);
 
-        // Fetch from 00:00 to 01:00 of the first day of the month (extended range)
-        const dateFrom = `${firstDayOfMonth}T00:00:00`;
-        const dateTo = `${firstDayOfMonth}T01:00:00`;
-
+        // Fetch using the new robust method
         try {
-          const historyData = await getHistoryValueV3(
-            configId,
-            dateFrom,
-            dateTo
-          );
+          const fetchDate = new Date(firstDayOfMonth + "T00:00:00");
+          const eraVal = await getStartOfMonthValueFromEra(configId, fetchDate);
 
-          if (historyData && historyData.length > 0) {
-            // Sort by date ascending to get the earliest record
-            const sortedData = [...historyData].sort((a, b) => {
-              const dateA = new Date(a.created_at || a.x);
-              const dateB = new Date(b.created_at || b.x);
-              return dateA - dateB;
-            });
+          if (eraVal !== null) {
+            console.log(`Fetched monthly baseline from E-RA: ${eraVal}`);
+            val = eraVal;
 
-            const firstItem = sortedData[0];
-            const eraVal = parseFloat(
-              firstItem.val !== undefined ? firstItem.val : firstItem.y
-            );
-
-            if (!isNaN(eraVal)) {
-              console.log(`Fetched monthly baseline from E-RA: ${eraVal}`);
-              val = eraVal;
-
-              // Save to Firebase for next time
-              await saveDailyBaseline(acId, firstDayOfMonth, val);
-              console.log("Saved monthly baseline to Firebase.");
-            }
+            // Save to Firebase for next time
+            await saveDailyBaseline(acId, firstDayOfMonth, val);
+            console.log("Saved monthly baseline to Firebase.");
           } else {
             console.warn("No history data found in E-RA for start of month.");
           }
