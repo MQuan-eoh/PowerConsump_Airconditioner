@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import "./ConfigMappingModal.css";
 import "./ACCard.css"; // Ensure ACCard styles are imported for the card effect
 
@@ -22,7 +22,7 @@ const ConfigMappingModal = ({
   configs = [],
   acName,
 }) => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
   const [mappings, setMappings] = useState({});
 
   useEffect(() => {

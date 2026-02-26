@@ -63,8 +63,8 @@ export const MqttProvider = ({ children }) => {
         value = message; // Raw string if not JSON
       }
 
-      // 3. Find the AC with this Token
-      const targetAC = acs.find((ac) => ac.chipId === token);
+      // 3. Find the AC with this Token (which might be in a comma-separated list of chipIds)
+      const targetAC = acs.find((ac) => ac.chipId && ac.chipId.toString().split(",").includes(String(token)));
       if (!targetAC) return;
 
       // 4. Find the Attribute for this ConfigID

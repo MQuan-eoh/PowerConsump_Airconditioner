@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import { getTempColor } from "../utils/tempUtils";
 import "./ACCard.css";
 
 const ACCard = ({ ac, monthlyKwh, todayKwh, onClick, onDelete }) => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
 
   const getFanModeLabel = (mode) => {
     const labels = {

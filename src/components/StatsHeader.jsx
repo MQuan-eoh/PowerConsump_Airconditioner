@@ -1,8 +1,8 @@
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import "./StatsHeader.css";
 
 const StatsHeader = ({ online, offline, total, totalKwh }) => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
 
   return (
     <div className="stats-header">

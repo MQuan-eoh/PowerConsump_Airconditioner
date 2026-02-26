@@ -11,7 +11,7 @@ import {
   LabelList,
 } from "recharts";
 import { format, parseISO } from "date-fns";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import "./EnergyChart.css";
 
 const CustomBar = (props) => {
@@ -112,7 +112,7 @@ const CustomLabel = (props) => {
 };
 
 const EnergyChart = ({ data, period }) => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
   const formattedData = useMemo(() => {
     return data.map((item) => {
       let label = item.date;

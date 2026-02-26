@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import sunIcon from "../assets/imgs/sun.png";
 import stormIcon from "../assets/imgs/storm.png";
 import weatherIcon from "../assets/imgs/weather.png";
@@ -21,7 +21,7 @@ L.Icon.Default.mergeOptions({
 });
 
 const WeatherPanel = () => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
   const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

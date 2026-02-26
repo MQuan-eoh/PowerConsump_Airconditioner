@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import { fetchUnitChips, fetchChipConfigs } from "../services/eraService";
 import "./AddACModal.css";
 // reusing the CSS from ConfigMappingModal for the inline section if needed, or inline styles
@@ -18,7 +18,7 @@ const MAPPING_FIELDS = [
 ];
 
 const AddACModal = ({ onClose, onAdd }) => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     name: "",
     roomName: "",
@@ -32,22 +32,20 @@ const AddACModal = ({ onClose, onAdd }) => {
 
   const [chips, setChips] = useState([]);
   const [configs, setConfigs] = useState([]);
-  const [selectedChipId, setSelectedChipId] = useState("");
+  const [selectedChips, setSelectedChips] = useState([]);
   const [loadingEra, setLoadingEra] = useState(false);
   const [eraError, setEraError] = useState(null);
   const [mappings, setMappings] = useState({});
   const [step, setStep] = useState(1);
 
-  // Initialize mappings when configs are loaded
+  // Initialize mappings on mount
   useEffect(() => {
-    if (configs.length > 0) {
-      const initial = {};
-      MAPPING_FIELDS.forEach((field) => {
-        initial[field.key] = "";
-      });
-      setMappings(initial);
-    }
-  }, [configs]);
+    const initial = {};
+    MAPPING_FIELDS.forEach((field) => {
+      initial[field.key] = "";
+    });
+    setMappings(initial);
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -80,25 +78,64 @@ const AddACModal = ({ onClose, onAdd }) => {
     }
   };
 
-  const handleChipChange = async (e) => {
+  const handleAddChip = async (e) => {
     const chipId = e.target.value;
-    setSelectedChipId(chipId);
-    setConfigs([]);
+    if (!chipId) return;
 
-    if (chipId) {
-      setLoadingEra(true);
-      setEraError(null);
-      try {
-        const data = await fetchChipConfigs(chipId);
+    // Check if already selected
+    if (selectedChips.some((chip) => String(chip.id) === String(chipId))) {
+      e.target.value = "";
+      return;
+    }
+
+    const selectedChip = chips.find((chip) => String(chip.id) === String(chipId));
+    if (selectedChip) {
+      const updatedChips = [...selectedChips, selectedChip];
+      setSelectedChips(updatedChips);
+      await loadConfigsForChips(updatedChips);
+    }
+    // Reset select
+    e.target.value = "";
+  };
+
+  const handleRemoveChip = async (chipIdToRemove) => {
+    const updatedChips = selectedChips.filter(
+      (chip) => String(chip.id) !== String(chipIdToRemove)
+    );
+    setSelectedChips(updatedChips);
+    
+    // Clean mappings that belong to this chip when removed
+    await loadConfigsForChips(updatedChips);
+  };
+
+  const loadConfigsForChips = async (chipsArray) => {
+    if (chipsArray.length === 0) {
+      setConfigs([]);
+      return;
+    }
+
+    setLoadingEra(true);
+    setEraError(null);
+    try {
+      const allConfigs = [];
+      const configPromises = chipsArray.map(async (chip) => {
+        const data = await fetchChipConfigs(chip.id);
         const list = Array.isArray(data) ? data : data.results || [];
-        setConfigs(list);
-      } catch (error) {
-        console.error(error);
-        setEraError("Failed to load configs for selected chip");
-        setConfigs([]);
-      } finally {
-        setLoadingEra(false);
-      }
+        return list.map(c => ({...c, chipName: chip.name || chip.code}));
+      });
+      
+      const results = await Promise.all(configPromises);
+      results.forEach((chipConfigs) => {
+        allConfigs.push(...chipConfigs);
+      });
+      
+      setConfigs(allConfigs);
+    } catch (error) {
+      console.error(error);
+      setEraError("Failed to load configs for selected chips");
+      setConfigs([]);
+    } finally {
+      setLoadingEra(false);
     }
   };
 
@@ -118,13 +155,14 @@ const AddACModal = ({ onClose, onAdd }) => {
       roomArea: parseFloat(formData.roomArea) || 0,
       capacity: parseInt(formData.capacity) || 9000,
       power: parseInt(formData.power) || 1000,
-      chipId: selectedChipId,
+      chipId: selectedChips.map(c => c.id).join(","),
       configMapping: mappings,
       // Set eraConfigId from powerConsumption mapping for energy consumption tracking
       eraConfigId: mappings.powerConsumption ? parseInt(mappings.powerConsumption) : null,
       voltageId: mappings.voltage ? parseInt(mappings.voltage) : null,
       currentId: mappings.current ? parseInt(mappings.current) : null,
       tempId: mappings.currentTemp ? parseInt(mappings.currentTemp) : null,
+      isEraLinked: true, // Auto-link to E-Ra upon creation
     });
   };
 
@@ -354,17 +392,35 @@ const AddACModal = ({ onClose, onAdd }) => {
                           <label>Select Device (Chip)</label>
                           <select
                             className="input-field"
-                            value={selectedChipId}
-                            onChange={handleChipChange}
+                            value=""
+                            onChange={handleAddChip}
                             disabled={loadingEra}
                           >
-                            <option value="">-- Select Device --</option>
+                            <option value="" disabled>-- Select Device --</option>
                             {chips.map((chip, index) => (
                               <option key={chip.id || index} value={chip.id}>
                                 {chip.name || chip.code} (ID: {chip.id})
                               </option>
                             ))}
                           </select>
+
+                          {/* Selected Chips Tags */}
+                          {selectedChips.length > 0 && (
+                            <div className="selected-chips-container mt-2">
+                              {selectedChips.map((chip) => (
+                                <div key={chip.id} className="chip-tag">
+                                  <span>{chip.name || chip.code} (ID: {chip.id})</span>
+                                  <button
+                                    type="button"
+                                    className="remove-chip-btn"
+                                    onClick={() => handleRemoveChip(chip.id)}
+                                  >
+                                    &times;
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -399,18 +455,18 @@ const AddACModal = ({ onClose, onAdd }) => {
                                   handleMappingChange(field.key, e.target.value)
                                 }
                               >
-                                <option value="">-- Select Config --</option>
-                                {configs.map((cfg, index) => (
-                                  <option key={cfg.id || index} value={cfg.id}>
-                                    {cfg.caption ||
-                                      cfg.name ||
-                                      cfg.parameter_name}
-                                    <span className="config-id">
-                                      {" "}
-                                      (ID: {cfg.id})
-                                    </span>
-                                  </option>
-                                ))}
+                                  <option value="">-- Select Config --</option>
+                                  {configs.map((cfg, index) => (
+                                    <option key={cfg.id || index} value={cfg.id}>
+                                      {cfg.caption ||
+                                        cfg.name ||
+                                        cfg.parameter_name}
+                                      <span className="config-id">
+                                        {" "}
+                                        ({cfg.chipName ? `${cfg.chipName} - ` : ""}ID: {cfg.id})
+                                      </span>
+                                    </option>
+                                  ))}
                               </select>
                             </div>
                           ))}

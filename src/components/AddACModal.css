@@ -195,3 +195,40 @@
     transform: translateY(0);
   }
 }
+
+.selected-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chip-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-glass-light);
+  border: 1px solid var(--border-glass);
+  padding: 6px 10px;
+  border-radius: 16px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.remove-chip-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.remove-chip-btn:hover {
+  color: var(--accent-red);
+}

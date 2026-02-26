@@ -12,7 +12,8 @@ import {
   saveDailyBaseline,
 } from "../services/firebaseService";
 import { getHistoryValueV3, getStartOfDayValueFromEra, getStartOfMonthValueFromEra } from "../services/eraService";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
+import { useEra } from "../contexts/EraContext";
 import ACCard from "../components/ACCard";
 import AddACModal from "../components/AddACModal";
 import StatsHeader from "../components/StatsHeader";
@@ -24,7 +25,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const unsubscribe = subscribeToACUnits(async (units) => {
@@ -36,32 +37,51 @@ const Dashboard = () => {
   }, []);
 
   const { acLiveStates } = useMqttData();
+  const { getValueById, isReady: isEraReady } = useEra();
 
   const getMergedACs = () => {
     return acUnits.map((ac) => {
       const live =
         acLiveStates && acLiveStates[ac.id] ? acLiveStates[ac.id] : null;
-      if (!live) return ac;
 
-      // Merge Logic: Map Config Keys (from AddACModal) to Display Keys (from ACCard)
-      // Mappings: targetTemp -> temperature, power -> isOn, fanSpeed -> fanMode
+      // Extract raw ERA values if available (from widget APIs initially)
+      let eraTemp = null;
+      let eraPower = null;
+
+      if (isEraReady && ac.configMapping) {
+        if (ac.configMapping.targetTemp) {
+          const val = getValueById(parseInt(ac.configMapping.targetTemp));
+          if (val !== null && val !== undefined) eraTemp = parseFloat(val);
+        }
+        if (ac.configMapping.power) {
+           const val = getValueById(parseInt(ac.configMapping.power));
+           if (val !== null && val !== undefined) {
+             eraPower = String(val) === "1" || String(val).toLowerCase() === "true" || String(val) === "on";
+           }
+        }
+      }
+
+      if (!live && !isEraReady) return ac; // Fallback to firebase if IoT is completely disconnected
+
+      // Priority: 1. Live MQTT -> 2. Era Widget Init State -> 3. Firebase state
       return {
         ...ac,
-        ...live, // Overwrite any matching keys directly
+        ...(live || {}), // Overwrite any matching keys directly
         temperature:
-          live.targetTemp !== undefined ? live.targetTemp : ac.temperature,
+          live?.targetTemp !== undefined ? live.targetTemp : 
+          (eraTemp !== null ? eraTemp : ac.temperature),
         isOn:
-          live.power !== undefined
-            ? String(live.power) === "1" ||
+          live?.power !== undefined
+            ? (String(live.power) === "1" ||
               String(live.power).toLowerCase() === "true" ||
-              String(live.power) === "on"
-            : ac.isOn,
-        fanMode: live.fanSpeed !== undefined ? live.fanSpeed : ac.fanMode,
+              String(live.power) === "on")
+            : (eraPower !== null ? eraPower : ac.isOn),
+        fanMode: live?.fanSpeed !== undefined ? live.fanSpeed : ac.fanMode,
         // Assume online if we have live data recently
-        isOnline: live.lastUpdated
+        isOnline: live?.lastUpdated
           ? Date.now() - live.lastUpdated < 120000
           : ac.isOnline, // 2 mins timeout
-        currentTemp: live.currentTemp, // Pass this through even if ACCard doesn't use it yet
+        currentTemp: live?.currentTemp, // Pass this through even if ACCard doesn't use it yet
       };
     });
   };

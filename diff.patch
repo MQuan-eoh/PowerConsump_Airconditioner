@@ -1,0 +1,462 @@
+diff --git a/README.md b/README.md
+index cf4013c..8d12f6f 100644
+--- a/README.md
++++ b/README.md
+@@ -1,18 +1,125 @@
+-# React + Vite
++# Energy Saving Dashboard
+ 
+-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
++## Hướng dẫn sử dụng MQTT/WebSocket với JavaScript
+ 
+-Currently, two official plugins are available:
++### 1. Tổng quan về WebSocket
+ 
+-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
++**WebSocket** là một giao thức mạng cho phép thiết lập một kết nối hai chiều (full-duplex) lâu dài giữa client (trình duyệt, thiết bị IoT, AI Box,...) và server. Điều này giúp truyền dữ liệu real-time với độ trễ thấp, rất phù hợp cho các ứng dụng IoT, dashboard, AI assistant, v.v.
+ 
+-## React Compiler
++#### a. Sự khác biệt giữa ws:// và wss://
+ 
+-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
++- `ws://` (WebSocket): Kết nối WebSocket thông thường, không mã hóa, tương tự như HTTP.
++- `wss://` (WebSocket Secure): Kết nối WebSocket được mã hóa qua TLS/SSL, tương tự như HTTPS. Dữ liệu truyền đi được bảo vệ khỏi nghe lén và giả mạo.
+ 
+-Note: This will impact Vite dev & build performances.
++> **Khuyến nghị:** Khi triển khai trên môi trường thực tế (production), luôn sử dụng `wss://` để đảm bảo an toàn dữ liệu, đặc biệt khi truyền thông tin nhạy cảm hoặc điều khiển thiết bị từ xa.
+ 
+-## Expanding the ESLint configuration
++#### b. Dữ liệu trong WebSocket được truyền như thế nào?
+ 
+-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
++- Khi kết nối được thiết lập, client và server có thể gửi/nhận dữ liệu bất cứ lúc nào (full-duplex, real-time).
++- Dữ liệu truyền qua WebSocket thường là chuỗi (string), JSON, hoặc nhị phân (binary). Trong ứng dụng MQTT, payload thường là chuỗi JSON hoặc text.
++- Ví dụ:
++  - Gửi: `client.send(JSON.stringify({ type: 'command', value: 1 }))`
++  - Nhận: `socket.onmessage = (event) => { const data = JSON.parse(event.data); }`
++
++#### c. Tại sao các AI Box/Robot/Assistant sử dụng WebSocket?
++
++1. **Real-time:** WebSocket cho phép truyền dữ liệu hai chiều liên tục, rất phù hợp cho các hệ thống AI cần phản hồi tức thời (ví dụ: AI Box nhận lệnh từ server, gửi trạng thái, nhận kết quả AI, ...).
++2. **Tiết kiệm tài nguyên:** Không cần liên tục gửi request như HTTP polling, giảm tải cho server và client.
++3. **Đơn giản hóa giao tiếp:** Một kết nối duy nhất cho cả gửi và nhận, dễ quản lý trạng thái thiết bị.
++4. **Hỗ trợ tốt cho IoT:** Các thiết bị nhỏ gọn, AI Box, robot... thường dùng WebSocket để duy trì kết nối ổn định, tiết kiệm pin và băng thông.
++
++#### d. Minh họa luồng dữ liệu WebSocket
++
++```
++Client (AI Box, Dashboard, ...) <==== WebSocket (ws/wss) ====> Server (AI, MQTT Broker, ...)
++```
++
++Khi client gửi dữ liệu (ví dụ: trạng thái cảm biến, lệnh điều khiển), server nhận và xử lý ngay lập tức, có thể phản hồi lại client trong cùng kết nối đó.
++
++---
++
++### 2. Cách triển khai MQTT/WebSocket trong JavaScript
++
++#### a. Cài đặt thư viện
++
++```bash
++npm install mqtt
++```
++
++#### b. Kết nối tới MQTT Broker
++
++File: `src/services/mqttService.js`
++
++```js
++import mqtt from "mqtt";
++
++const MQTT_TOKEN = "<token>"; // Thay bằng token thực tế
++const host = "mqtt1.eoh.io";
++const protocol = "wss";
++const port = 8084;
++const connectUrl = `${protocol}://${host}:${port}`;
++
++const client = mqtt.connect(connectUrl, {
++  clientId: `mqtt_web_${Math.random().toString(16).slice(3)}`,
++  username: MQTT_TOKEN,
++  password: MQTT_TOKEN,
++  clean: true,
++  connectTimeout: 4000,
++  reconnectPeriod: 2000,
++});
++
++client.on("connect", () => {
++  console.log("Connected to MQTT Broker");
++});
++
++client.on("message", (topic, payload) => {
++  const message = payload.toString();
++  // Xử lý message tại đây
++});
++
++client.on("error", (err) => {
++  console.error("Connection error: ", err);
++  client.end();
++});
++```
++
++#### c. Đăng ký (subscribe) và hủy đăng ký (unsubscribe) topic
++
++```js
++// Đăng ký nhận dữ liệu từ topic
++client.subscribe("ten/topic", { qos: 1 }, (err) => {
++  if (err) console.error("Subscribe error", err);
++});
++
++// Hủy đăng ký topic
++client.unsubscribe("ten/topic");
++```
++
++#### d. Gửi dữ liệu lên topic
++
++```js
++client.publish("ten/topic", "noi_dung_message");
++```
++
++#### e. Ngắt kết nối
++
++```js
++client.end();
++```
++
++### 3. Lưu ý
++
++- Sử dụng giao thức `wss` (WebSocket Secure) để đảm bảo bảo mật khi kết nối từ trình duyệt.
++- Token và các thông tin nhạy cảm nên được bảo vệ, không public lên client nếu không cần thiết.
++- Có thể tái sử dụng các hàm trong `src/services/mqttService.js` để quản lý kết nối, subscribe, unsubscribe, disconnect.
++
++### 4. Tham khảo nhanh các hàm chính trong `mqttService.js`
++
++- `connectMqtt(onMessage, onConnect)`: Kết nối và thiết lập callback khi có message hoặc khi kết nối thành công.
++- `subscribeToTopic(topic)`: Đăng ký topic.
++- `unsubscribeFromTopic(topic)`: Hủy đăng ký topic.
++- `disconnectMqtt()`: Ngắt kết nối.
++
++---
++
++## Các phần khác của README giữ nguyên nội dung cũ bên dưới nếu có.
+diff --git a/src/pages/ControlPanel.jsx b/src/pages/ControlPanel.jsx
+index 90ac0e1..8cb2495 100644
+--- a/src/pages/ControlPanel.jsx
++++ b/src/pages/ControlPanel.jsx
+@@ -17,7 +17,8 @@ import {
+   getHourlyConsumptionFromEra,
+   getDailyConsumptionFromEra,
+   getWeeklyConsumptionFromEra,
+-  getStartOfDayValueFromEra
++  getStartOfDayValueFromEra,
++  getStartOfMonthValueFromEra
+ } from "../services/eraService";
+ import { format, startOfMonth, startOfWeek, addDays, parseISO, startOfDay, endOfDay } from "date-fns";
+ import { getDateRange, processConsumptionData } from "../utils/dateFilter";
+@@ -407,38 +408,18 @@ const ControlPanel = () => {
+         }
+         configId = parseInt(configId);
+ 
+-        // Fetch from 00:00 to 01:00 of the first day of the month (extended range)
+-        const dateFrom = `${firstDayOfMonth}T00:00:00`;
+-        const dateTo = `${firstDayOfMonth}T01:00:00`;
+-
++        // Fetch using the new robust method
+         try {
+-          const historyData = await getHistoryValueV3(
+-            configId,
+-            dateFrom,
+-            dateTo
+-          );
++          const fetchDate = new Date(firstDayOfMonth + "T00:00:00");
++          const eraVal = await getStartOfMonthValueFromEra(configId, fetchDate);
+ 
+-          if (historyData && historyData.length > 0) {
+-            // Sort by date ascending to get the earliest record
+-            const sortedData = [...historyData].sort((a, b) => {
+-              const dateA = new Date(a.created_at || a.x);
+-              const dateB = new Date(b.created_at || b.x);
+-              return dateA - dateB;
+-            });
+-
+-            const firstItem = sortedData[0];
+-            const eraVal = parseFloat(
+-              firstItem.val !== undefined ? firstItem.val : firstItem.y
+-            );
+-
+-            if (!isNaN(eraVal)) {
+-              console.log(`Fetched monthly baseline from E-RA: ${eraVal}`);
+-              val = eraVal;
+-
+-              // Save to Firebase for next time
+-              await saveDailyBaseline(acId, firstDayOfMonth, val);
+-              console.log("Saved monthly baseline to Firebase.");
+-            }
++          if (eraVal !== null) {
++            console.log(`Fetched monthly baseline from E-RA: ${eraVal}`);
++            val = eraVal;
++
++            // Save to Firebase for next time
++            await saveDailyBaseline(acId, firstDayOfMonth, val);
++            console.log("Saved monthly baseline to Firebase.");
+           } else {
+             console.warn("No history data found in E-RA for start of month.");
+           }
+diff --git a/src/pages/Dashboard.jsx b/src/pages/Dashboard.jsx
+index 803d47f..8d64d32 100644
+--- a/src/pages/Dashboard.jsx
++++ b/src/pages/Dashboard.jsx
+@@ -11,7 +11,7 @@ import {
+   getDailyBaseline,
+   saveDailyBaseline,
+ } from "../services/firebaseService";
+-import { getHistoryValueV3 } from "../services/eraService";
++import { getHistoryValueV3, getStartOfDayValueFromEra, getStartOfMonthValueFromEra } from "../services/eraService";
+ import { useLanguage } from "../contexts/LanguageContext";
+ import ACCard from "../components/ACCard";
+ import AddACModal from "../components/AddACModal";
+@@ -96,6 +96,7 @@ const Dashboard = () => {
+     acUnitsRef.current = acUnits;
+   }, [acUnits]);
+ 
++  // Helper to fetch baseline
+   // Helper to fetch baseline
+   const fetchBaseline = async (ac, dateStr) => {
+     const id = ac.id;
+@@ -111,47 +112,27 @@ const Dashboard = () => {
+         let configId = ac.eraConfigId || ac.configMapping?.powerConsumption;
+ 
+         if (!configId) {
+-          // If no config ID, we can't fetch from E-RA.
+-          // Return 0 or handle as "no data"
+           return 0;
+         }
+         configId = parseInt(configId);
++        
++        // Determine whether this is a "first day of month" request or a "daily" request
++        const isFirstOfMonth = dateStr.endsWith("-01");
++        const fetchDate = new Date(dateStr + "T00:00:00");
++
++        if (isFirstOfMonth) {
++          val = await getStartOfMonthValueFromEra(configId, fetchDate);
++        } else {
++          val = await getStartOfDayValueFromEra(configId, fetchDate);
++        }
+ 
+-        // Fetch from 00:00 to 01:00 to get the baseline (extended range for devices with infrequent updates)
+-        const dateFrom = `${dateStr}T00:00:00`;
+-        const dateTo = `${dateStr}T01:00:00`;
+-
+-        try {
+-          const historyData = await getHistoryValueV3(
+-            configId,
+-            dateFrom,
+-            dateTo
+-          );
+-
+-          if (historyData && historyData.length > 0) {
+-            const sortedData = [...historyData].sort((a, b) => {
+-              const dateA = new Date(a.created_at || a.x);
+-              const dateB = new Date(b.created_at || b.x);
+-              return dateA - dateB;
+-            });
+-
+-            const firstItem = sortedData[0];
+-            const eraVal = parseFloat(
+-              firstItem.val !== undefined ? firstItem.val : firstItem.y
+-            );
+-
+-            if (!isNaN(eraVal)) {
+-              val = eraVal;
+-              await saveDailyBaseline(id, dateStr, val);
+-            }
+-          }
+-        } catch (eraError) {
+-          console.error("Error fetching from E-RA:", eraError);
++        if (val !== null) {
++          await saveDailyBaseline(id, dateStr, val);
+         }
+       }
+ 
+       const result = val !== null ? val : 0;
+-      if (val !== null) localStorage.setItem(cacheKey, val);
++      if (val !== null) localStorage.setItem(cacheKey, val.toString());
+       return result;
+     } catch (error) {
+       console.error(`Error fetching baseline for ${id}:`, error);
+diff --git a/src/services/eraService.js b/src/services/eraService.js
+index 0f44266..13d7a13 100644
+--- a/src/services/eraService.js
++++ b/src/services/eraService.js
+@@ -535,6 +535,17 @@ export const cleanupEraWidget = () => {
+   console.log("E-RA Widget cleaned up");
+ };
+ 
++/**
++ * Helper to format date as YYYY-MM-DD in local time
++ * This avoids timezone shift issues with toISOString() which uses UTC
++ * @param {Date} date
++ * @returns {string} YYYY-MM-DD
++ */
++const formatLocalDate = (date) => {
++  const pad = (n) => String(n).padStart(2, '0');
++  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
++};
++
+ /**
+  * Get history values from E-RA API
+  * @param {number} configId - The configuration ID
+@@ -628,9 +639,9 @@ export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
+  * @returns {Promise<Array>} - Array of { hour: "00", kwh: 0.5 }
+  */
+ export const getHourlyConsumptionFromEra = async (configId, date = new Date()) => {
+-  const dateStr = date.toISOString().split('T')[0]; // yyyy-MM-dd
++  const dateStr = formatLocalDate(date); // yyyy-MM-dd
+   const now = new Date();
+-  const isToday = dateStr === now.toISOString().split('T')[0];
++  const isToday = dateStr === formatLocalDate(now);
+   
+   // If today, fetch until current time; otherwise fetch full day
+   const endTime = isToday 
+@@ -730,43 +741,117 @@ export const getHourlyConsumptionFromEra = async (configId, date = new Date()) =
+ };
+ 
+ /**
+- * Get the start-of-day (beginPW) value from E-RA API
+- * This value should be saved to Firebase as beginPW
+- * @param {number} configId - The power consumption config ID
+- * @param {Date} date - The date to fetch
+- * @returns {Promise<number|null>} - The start-of-day kWh value or null if not found
++ * Get the start-of-period value from E-RA API by scanning a specific timeframe
+  */
+-export const getStartOfDayValueFromEra = async (configId, date) => {
+-  const dateStr = date.toISOString().split('T')[0];
+-  
++export const getFirstValueInRangeFromEra = async (configId, dateFrom, dateTo) => {
+   try {
+-    const startFrom = `${dateStr}T00:00:00`;
+-    const startTo = `${dateStr}T01:00:00`;
+-    
+-    console.log(`EraService: Fetching beginPW for ${dateStr} from ${startFrom} to ${startTo}`);
+-    const startHistory = await getHistoryValueV3(configId, startFrom, startTo);
++    const historyData = await getHistoryValueV3(configId, dateFrom, dateTo);
+     
+-    if (startHistory && startHistory.length > 0) {
++    if (historyData && historyData.length > 0) {
+       // Get the earliest value
+-      const sorted = [...startHistory].sort((a, b) => {
++      const sorted = [...historyData].sort((a, b) => {
+         return new Date(a.created_at || a.x) - new Date(b.created_at || b.x);
+       });
+       const startVal = parseFloat(sorted[0].val !== undefined ? sorted[0].val : sorted[0].y);
+       
+       if (!isNaN(startVal)) {
+-        console.log(`EraService: Found beginPW for ${dateStr}: ${startVal}`);
+         return startVal;
+       }
+     }
+-    
+-    console.log(`EraService: No beginPW found for ${dateStr}`);
+     return null;
+   } catch (error) {
+-    console.error(`EraService: Error fetching beginPW for ${dateStr}:`, error);
++    console.error(`EraService: Error fetching first value between ${dateFrom} and ${dateTo}:`, error);
+     return null;
+   }
+ };
+ 
++/**
++ * Get the start-of-day (beginPW) value from E-RA API
++ * This value should be saved to Firebase as beginPW
++ * @param {number} configId - The power consumption config ID
++ * @param {Date} date - The date to fetch
++ * @returns {Promise<number|null>} - The start-of-day kWh value or null if not found
++ */
++export const getStartOfDayValueFromEra = async (configId, date) => {
++  const dateStr = formatLocalDate(date);
++  
++  // 1. First attempt: Scan a small 5-minute window (00:00:00 to 00:05:00) for performance
++  const startFrom = `${dateStr}T00:00:00`;
++  const baselineTo = `${dateStr}T00:05:00`;
++  
++  console.log(`EraService: Fetching daily baseline (5-min scan) for ${dateStr}`);
++  let startVal = await getFirstValueInRangeFromEra(configId, startFrom, baselineTo);
++  
++  if (startVal !== null) {
++    console.log(`EraService: Found daily baseline in 5-min window: ${startVal}`);
++    return startVal;
++  }
++  
++  // 2. Fallback: Scan the entire day if the 5-min window was empty
++  console.log(`EraService: No data in 5-min window. Scanning entire day for ${dateStr}`);
++  const dayTo = `${dateStr}T23:59:59`;
++  startVal = await getFirstValueInRangeFromEra(configId, startFrom, dayTo);
++  
++  if (startVal !== null) {
++    console.log(`EraService: Found daily baseline in full day scan: ${startVal}`);
++    return startVal;
++  }
++  
++  console.log(`EraService: No daily baseline found for ${dateStr}`);
++  return null;
++};
++
++/**
++ * Get the start-of-month baseline value from E-RA API
++ * @param {number} configId - The power consumption config ID
++ * @param {Date} date - Any date within the target month
++ * @returns {Promise<number|null>} - The start-of-month kWh value or null if not found
++ */
++export const getStartOfMonthValueFromEra = async (configId, date) => {
++  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
++  const firstDayStr = formatLocalDate(firstDay);
++  
++  // 1. First attempt: Scan 5-minute window on the first day of the month
++  const startFrom = `${firstDayStr}T00:00:00`;
++  const baselineTo = `${firstDayStr}T00:05:00`;
++  
++  console.log(`EraService: Fetching monthly baseline (5-min scan) for ${firstDayStr}`);
++  let startVal = await getFirstValueInRangeFromEra(configId, startFrom, baselineTo);
++  
++  if (startVal !== null) {
++    console.log(`EraService: Found monthly baseline in 5-min window: ${startVal}`);
++    return startVal;
++  }
++  
++  // 2. Second attempt: Scan the entire first day
++  console.log(`EraService: No data in 5-min window. Scanning entire first day: ${firstDayStr}`);
++  const firstDayEnd = `${firstDayStr}T23:59:59`;
++  startVal = await getFirstValueInRangeFromEra(configId, startFrom, firstDayEnd);
++  
++  if (startVal !== null) {
++    console.log(`EraService: Found monthly baseline on the first day: ${startVal}`);
++    return startVal;
++  }
++  
++  // 3. Last fallback: Scan first 7 days of the month
++  console.log(`EraService: Scanning first 7 days of the month for baseline...`);
++  const seventhDay = new Date(date.getFullYear(), date.getMonth(), 7);
++  const now = new Date();
++  const endDate = seventhDay > now ? now : seventhDay;
++  const endDateStr = formatLocalDate(endDate);
++  
++  const weekTo = `${endDateStr}T23:59:59`;
++  startVal = await getFirstValueInRangeFromEra(configId, startFrom, weekTo);
++  
++  if (startVal !== null) {
++    console.log(`EraService: Found monthly baseline within the first 7 days: ${startVal}`);
++    return startVal;
++  }
++
++  console.log(`EraService: No monthly baseline found for month starting ${firstDayStr}`);
++  return null;
++};
++
+ /**
+  * Get daily energy consumption for a specific day from E-RA API
+  * @param {number} configId - The power consumption config ID
+@@ -989,4 +1074,5 @@ export default {
+   fetchUnitChips,
+   fetchChipConfigs,
+   getStartOfDayValueFromEra,
++  getStartOfMonthValueFromEra,
+ };

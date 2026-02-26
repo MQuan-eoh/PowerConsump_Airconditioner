@@ -22,7 +22,7 @@ import {
 } from "../services/eraService";
 import { format, startOfMonth, startOfWeek, addDays, parseISO, startOfDay, endOfDay } from "date-fns";
 import { getDateRange, processConsumptionData } from "../utils/dateFilter";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import { useEra } from "../contexts/EraContext";
 import EnergyChart from "../components/EnergyChart";
 import WeatherPanel from "../components/WeatherPanel";
@@ -49,7 +49,7 @@ import AIDebugModal from "../components/AIDebugModal";
 import "./ControlPanel.css";
 
 const ControlPanel = () => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
   const { acId } = useParams();
   const navigate = useNavigate();
 
@@ -75,8 +75,29 @@ const ControlPanel = () => {
       const currentId = ac?.currentId || ac?.configMapping?.current;
       const powerConsumptionId = ac?.eraConfigId || ac?.configMapping?.powerConsumption;
       
+      const targetTempId = ac?.configMapping?.targetTemp;
+      const powerId = ac?.configMapping?.power;
+      
+      let isOn = eraValues.isOn;
+      if (powerId) {
+        const val = getValueById(parseInt(powerId));
+        if (val !== null && val !== undefined) {
+          isOn = String(val) === "1" || String(val).toLowerCase() === "true" || String(val) === "on";
+        }
+      }
+
+      let targetTemp = eraValues.targetTemperature;
+      if (targetTempId) {
+        const val = getValueById(parseInt(targetTempId));
+        if (val !== null && val !== undefined) {
+          targetTemp = parseFloat(val);
+        }
+      }
+
       return {
         ...eraValues,
+        targetTemperature: targetTemp,
+        isOn: isOn,
         currentTemperature:
           (tempId && getValueById(parseInt(tempId))) ?? eraValues.currentTemperature,
         voltage:
@@ -117,6 +138,14 @@ const ControlPanel = () => {
 
   // Determine if this AC is linked to E-RA (default to true if undefined for legacy support)
   const isEraLinked = ac?.isEraLinked !== false;
+
+  const displayIsOn = localEraValues?.isOn !== null && localEraValues?.isOn !== undefined && isEraReady && isEraLinked
+    ? localEraValues.isOn
+    : ac?.isOn;
+
+  const displayTemp = localEraValues?.targetTemperature !== null && localEraValues?.targetTemperature !== undefined && isEraReady && isEraLinked
+    ? localEraValues.targetTemperature
+    : ac?.temperature;
 
   // New Logic: Daily Baseline
   const [dailyBaseline, setDailyBaseline] = useState(null);
@@ -651,7 +680,7 @@ const ControlPanel = () => {
 
   const handlePowerToggle = async () => {
     if (ac) {
-      const newPowerState = !ac.isOn;
+      const newPowerState = !displayIsOn;
       if (isEraReady && isEraLinked) {
         setEraPower(newPowerState);
       }
@@ -660,9 +689,9 @@ const ControlPanel = () => {
   };
 
   const handleTemperatureChange = async (delta) => {
-    if (ac && ac.isOn) {
-      const oldTemp = ac.temperature;
-      const newTemp = Math.max(16, Math.min(30, ac.temperature + delta));
+    if (ac && displayIsOn) {
+      const oldTemp = displayTemp;
+      const newTemp = Math.max(16, Math.min(30, displayTemp + delta));
 
       if (oldTemp !== newTemp) {
         // Gửi nhiệt độ đến E-RA thiết bị IoT
@@ -958,7 +987,7 @@ const ControlPanel = () => {
               <button
                 className="temp-btn minus"
                 onClick={() => handleTemperatureChange(-1)}
-                disabled={!ac.isOn}
+                disabled={!displayIsOn}
               >
                 <svg
                   width="24"
@@ -973,15 +1002,15 @@ const ControlPanel = () => {
               </button>
 
               <motion.div
-                className={`temperature-display ${ac.isOn ? "active" : ""}`}
-                animate={{ scale: ac.isOn ? 1 : 0.9 }}
+                className={`temperature-display ${displayIsOn ? "active" : ""}`}
+                animate={{ scale: displayIsOn ? 1 : 0.9 }}
                 style={{
-                  color: ac.isOn ? getTempColor(ac.temperature) : undefined,
+                  color: displayIsOn ? getTempColor(displayTemp) : undefined,
                 }}
               >
-                {ac.isOn ? (
+                {displayIsOn ? (
                   <>
-                    <span className="temp-value">{ac.temperature}</span>
+                    <span className="temp-value">{displayTemp}</span>
                     <span className="temp-unit">C</span>
                   </>
                 ) : (
@@ -992,7 +1021,7 @@ const ControlPanel = () => {
               <button
                 className="temp-btn plus"
                 onClick={() => handleTemperatureChange(1)}
-                disabled={!ac.isOn}
+                disabled={!displayIsOn}
               >
                 <svg
                   width="24"
@@ -1009,7 +1038,7 @@ const ControlPanel = () => {
             </div>
 
             <button
-              className={`power-btn ${ac.isOn ? "on" : "off"}`}
+              className={`power-btn ${displayIsOn ? "on" : "off"}`}
               onClick={handlePowerToggle}
             >
               <svg

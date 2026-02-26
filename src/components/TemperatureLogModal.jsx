@@ -12,7 +12,7 @@ import {
   LabelList,
   Cell,
 } from "recharts";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import { getTemperatureLogs } from "../services/firebaseService";
 import { getTempColor } from "../utils/tempUtils";
 import "./TemperatureLogModal.css";
@@ -52,7 +52,7 @@ const CustomBarShape = (props) => {
 };
 
 const TemperatureLogModal = ({ isOpen, onClose, acId }) => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [period, setPeriod] = useState("day"); // day, week, month

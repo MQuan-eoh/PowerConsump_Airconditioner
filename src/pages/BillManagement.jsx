@@ -7,11 +7,11 @@ import {
   deleteElectricityBill,
   calculateSavings,
 } from "../services/firebaseService";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import "./BillManagement.css";
 
 const BillManagement = () => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [bills, setBills] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);

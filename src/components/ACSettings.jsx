@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLanguage } from "../contexts/LanguageContext";
+import { useTranslation } from "react-i18next";
 import "./ACSettings.css";
 
 const ACSettings = ({ ac, onClose, onSave }) => {
-  const { t } = useLanguage();
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     name: ac.name || "",
     roomName: ac.roomName || "",
@@ -240,43 +240,6 @@ const ACSettings = ({ ac, onClose, onSave }) => {
                       className="input-field"
                       placeholder={t("modelPlaceholder")}
                     />
-                  </div>
-                </div>
-
-                <div className="form-row">
-                  <div
-                    className="input-group checkbox-group"
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      name="isEraLinked"
-                      checked={formData.isEraLinked}
-                      onChange={handleChange}
-                      id="isEraLinked"
-                      style={{ width: "auto", margin: 0 }}
-                    />
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <label
-                        htmlFor="isEraLinked"
-                        style={{ marginBottom: 0, cursor: "pointer" }}
-                      >
-                        {t("linkToEra") || "Link to E-RA Device (IoT)"}
-                      </label>
-                      <small
-                        style={{
-                          color: "var(--text-muted)",
-                          fontSize: "0.8rem",
-                        }}
-                      >
-                        {t("linkToEraHelp") ||
-                          "Enable this to sync with real-time IoT data."}
-                      </small>
-                    </div>
                   </div>
                 </div>
               </div>
