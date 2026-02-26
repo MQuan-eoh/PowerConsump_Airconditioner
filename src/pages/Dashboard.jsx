@@ -97,17 +97,21 @@ const Dashboard = () => {
   }, [acUnits]);
 
   // Helper to fetch baseline
-  // Helper to fetch baseline
   const fetchBaseline = async (ac, dateStr) => {
     const id = ac.id;
     try {
-      const cacheKey = `baseline_${id}_${dateStr}`;
+      const isFirstOfMonth = dateStr.endsWith("-01");
+      const cacheKey = isFirstOfMonth ? `monthlyBaseline_${id}_${dateStr}` : `dailyBaseline_${id}_${dateStr}`;
+      
       const cached = localStorage.getItem(cacheKey);
-      if (cached !== null) return parseFloat(cached);
+      if (cached !== null && cached !== "undefined" && cached !== "NaN") {
+        const parsed = parseFloat(cached);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
 
       let val = await getDailyBaseline(id, dateStr);
 
-      if (val === null) {
+      if (val === null || val <= 0) {
         // Try eraConfigId first, then fallback to configMapping.powerConsumption
         let configId = ac.eraConfigId || ac.configMapping?.powerConsumption;
 
@@ -117,7 +121,6 @@ const Dashboard = () => {
         configId = parseInt(configId);
         
         // Determine whether this is a "first day of month" request or a "daily" request
-        const isFirstOfMonth = dateStr.endsWith("-01");
         const fetchDate = new Date(dateStr + "T00:00:00");
 
         if (isFirstOfMonth) {
@@ -126,13 +129,13 @@ const Dashboard = () => {
           val = await getStartOfDayValueFromEra(configId, fetchDate);
         }
 
-        if (val !== null) {
+        if (val !== null && val > 0) {
           await saveDailyBaseline(id, dateStr, val);
         }
       }
 
-      const result = val !== null ? val : 0;
-      if (val !== null) localStorage.setItem(cacheKey, val.toString());
+      const result = val !== null && val > 0 ? val : 0;
+      if (result > 0) localStorage.setItem(cacheKey, result.toString());
       return result;
     } catch (error) {
       console.error(`Error fetching baseline for ${id}:`, error);
