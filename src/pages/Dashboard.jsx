@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { format, startOfMonth } from "date-fns";
 import { useMqttData } from "../contexts/MqttContext";
@@ -106,16 +107,6 @@ const Dashboard = () => {
   const onlineCount = acUnits.filter((ac) => ac.isOnline).length;
   const offlineCount = acUnits.filter((ac) => !ac.isOnline).length;
 
-  const [totalKwh, setTotalKwh] = useState(0);
-  const [acConsumptions, setAcConsumptions] = useState({});
-  const [baselines, setBaselines] = useState({});
-  const acUnitsRef = useRef(acUnits);
-
-  // Update ref when acUnits changes to keep it fresh for the interval
-  useEffect(() => {
-    acUnitsRef.current = acUnits;
-  }, [acUnits]);
-
   // Helper to fetch baseline
   const fetchBaseline = async (ac, dateStr) => {
     const id = ac.id;
@@ -163,17 +154,16 @@ const Dashboard = () => {
     }
   };
 
-  // Step 1: Fetch baseline power consumption for the first day of the month and today
-  useEffect(() => {
-    const fetchBaselines = async () => {
-      if (acUnits.length === 0) return;
+  const { data: consumptionData } = useQuery({
+    queryKey: ["dashboard-consumption", acUnits.map((a) => a.id)],
+    queryFn: async () => {
+      if (acUnits.length === 0) return { totalKwh: 0, acConsumptions: {} };
 
       const now = new Date();
       const firstDayOfMonth = format(startOfMonth(now), "yyyy-MM-dd");
       const todayStr = format(now, "yyyy-MM-dd");
 
       const newBaselines = {};
-
       await Promise.all(
         acUnits.map(async (ac) => {
           const monthly = await fetchBaseline(ac, firstDayOfMonth);
@@ -182,59 +172,29 @@ const Dashboard = () => {
         })
       );
 
-      console.log("New baselines fetched:", newBaselines);
-      setBaselines(newBaselines);
-    };
-
-    fetchBaselines();
-  }, [acUnits]); // Run when acUnits list changes (e.g. initial load or add/remove)
-
-  // Step 3 & 4: Calculate monthly and daily consumption
-  useEffect(() => {
-    const calculateConsumption = async () => {
-      const units = acUnits; // Use current state directly as we are in useEffect dependency
       let total = 0;
       const newConsumptions = {};
 
-      console.log("Calculating consumption...");
+      const linkedUnits = acUnits.filter((ac) => ac.isEraLinked !== false);
 
-      // 1. Filter ACs that are linked to E-RA
-      const linkedUnits = units.filter((ac) => ac.isEraLinked !== false);
-
-      // 2. Get current power consumption for each linked unit
       const consumptionPromises = linkedUnits.map(async (ac) => {
         try {
-          const baseline = baselines[ac.id];
+          const baseline = newBaselines[ac.id];
+          if (!baseline) return 0;
 
-          if (!baseline) {
-            return 0;
-          }
-
-          // Get Current Value from E-RA
           let currentVal = 0;
-          // Try eraConfigId first, then fallback to configMapping.powerConsumption
           let configId = ac.eraConfigId || ac.configMapping?.powerConsumption;
 
-          if (!configId) {
-            // No config ID, return 0
-            return 0;
-          }
+          if (!configId) return 0;
           configId = parseInt(configId);
 
-          // Fetch latest value (last 24 hours to ensure we catch it even if device is infrequent)
-          const now = new Date();
           const past = new Date(now.getTime() - 24 * 60 * 60 * 1000);
           const dateFrom = format(past, "yyyy-MM-dd'T'HH:mm:ss");
           const dateTo = format(now, "yyyy-MM-dd'T'HH:mm:ss");
 
-          const historyData = await getHistoryValueV3(
-            configId,
-            dateFrom,
-            dateTo
-          );
+          const historyData = await getHistoryValueV3(configId, dateFrom, dateTo);
 
           if (historyData && historyData.length > 0) {
-            // Sort by date descending to get latest
             const sortedData = [...historyData].sort((a, b) => {
               const dateA = new Date(a.created_at || a.x);
               const dateB = new Date(b.created_at || b.x);
@@ -242,9 +202,7 @@ const Dashboard = () => {
             });
 
             const lastItem = sortedData[0];
-            const val = parseFloat(
-              lastItem.val !== undefined ? lastItem.val : lastItem.y
-            );
+            const val = parseFloat(lastItem.val !== undefined ? lastItem.val : lastItem.y);
             if (!isNaN(val)) {
               currentVal = val;
             }
@@ -266,33 +224,23 @@ const Dashboard = () => {
 
           return monthlyConsumption;
         } catch (error) {
-          console.error(
-            `Error calculating consumption for AC ${ac.id}:`,
-            error
-          );
+          console.error(`Error calculating consumption for AC ${ac.id}:`, error);
           return 0;
         }
       });
 
       const results = await Promise.all(consumptionPromises);
-
-      // (5) Sum total
       total = results.reduce((acc, curr) => acc + curr, 0);
 
-      console.log("Total Monthly Consumption:", total);
-      setTotalKwh(total);
-      setAcConsumptions(newConsumptions);
-    };
+      return { totalKwh: total, acConsumptions: newConsumptions };
+    },
+    refetchInterval: 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    enabled: acUnits.length > 0,
+  });
 
-    if (acUnits.length > 0) {
-      calculateConsumption();
-    }
-
-    // Update every 1 minute
-    const interval = setInterval(calculateConsumption, 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [acUnits, baselines]);
+  const totalKwh = consumptionData?.totalKwh || 0;
+  const acConsumptions = consumptionData?.acConsumptions || {};
 
   if (loading) {
     return (

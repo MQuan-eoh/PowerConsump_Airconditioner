@@ -1,0 +1,18 @@
+=== REFINED HISTORY TEST FOR CONFIG ID: 1459 ===
+
+--- STEP 1: FETCHING TODAY'S BASELINE (00:00 - 00:05) ---
+
+[API Query] 2026-02-26T00:00:00 -> 2026-02-26T00:05:00
+⚠️ No data in 00:00-00:05 window. Manual scan needed.
+Searching first record of the whole day: 2026-02-26T00:00:00 -> 2026-02-26T23:59:59
+
+[API Query] 2026-02-26T00:00:00 -> 2026-02-26T23:59:59
+❌ No data found for the entire day.
+
+--- STEP 2: FETCHING MONTHLY BASELINE (Day 1: 00:00 - 00:05) ---
+
+[API Query] 2026-02-01T00:00:00 -> 2026-02-01T00:05:00
+⚠️ No data on Day 1 00:00-00:05. Scanning entire first day...
+
+[API Query] 2026-02-01T00:00:00 -> 2026-02-01T23:59:59
+❌ No data found on the first day of the month.

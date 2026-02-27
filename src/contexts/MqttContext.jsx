@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   connectMqtt,
   subscribeToTopic,
@@ -7,12 +7,14 @@ import {
 } from "../services/mqttService";
 import { subscribeToACUnits } from "../services/firebaseService";
 
-const MqttContext = createContext(null);
+import { useMqttStore } from "../stores/useMqttStore";
 
 export const MqttProvider = ({ children }) => {
   const [messages, setMessages] = useState({}); // Debug: Store last messages
-  const [acLiveStates, setAcLiveStates] = useState({}); // Map: acId -> { currentTemp, ... }
   const [acs, setAcs] = useState([]);
+
+  const setAcLiveState = useMqttStore((state) => state.setAcLiveState);
+  const setIsConnected = useMqttStore((state) => state.setIsConnected);
 
   const processedRef = useRef(new Set()); // To avoid loops if we reflect back to DB (optional)
 
@@ -78,15 +80,8 @@ export const MqttProvider = ({ children }) => {
         console.log(
           `MQTT Update for ${targetAC.name}: ${attributeKey} = ${value}`
         );
-
-        setAcLiveStates((prev) => ({
-          ...prev,
-          [targetAC.id]: {
-            ...(prev[targetAC.id] || {}),
-            [attributeKey]: value,
-            lastUpdated: Date.now(),
-          },
-        }));
+        
+        setAcLiveState(targetAC.id, attributeKey, value);
       }
     };
 
@@ -95,21 +90,16 @@ export const MqttProvider = ({ children }) => {
       // Pattern: eoh/chip/{token}/config/+/value
       // Must use specific token to avoid ACL (Access Control List) errors
       subscribeToTopic(`eoh/chip/${MQTT_TOKEN}/config/+/value`);
+      setIsConnected(true);
     });
 
     return () => {
       disconnectMqtt();
+      setIsConnected(false);
     };
   }, [acs]); // Re-connect/re-eval if AC list changes drastically?
-  // Actually, 'acs' in dependency might cause reconnects.
-  // Better to use ref for 'acs' inside handleMessage or ensure 'acs' is stable.
-  // For simplicity V1, we keep it here or use a Ref for lookup.
 
-  return (
-    <MqttContext.Provider value={{ acLiveStates, isConnected: true }}>
-      {children}
-    </MqttContext.Provider>
-  );
+  return children;
 };
 
-export const useMqttData = () => useContext(MqttContext);
+export const useMqttData = () => useMqttStore();

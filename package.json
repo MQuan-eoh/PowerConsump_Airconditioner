@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query-devtools": "^5.91.3",
     "date-fns": "^4.1.0",
     "firebase": "^12.6.0",
     "framer-motion": "^12.23.25",
@@ -22,7 +24,8 @@
     "react-i18next": "^16.5.4",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.10.1",
-    "recharts": "^3.5.1"
+    "recharts": "^3.5.1",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
