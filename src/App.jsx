@@ -10,7 +10,7 @@ function App() {
   return (
     <EraProvider>
       <MqttProvider>
-        <BrowserRouter>
+        <BrowserRouter basename="/PowerConsump_Airconditioner">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/control/:acId" element={<ControlPanel />} />
