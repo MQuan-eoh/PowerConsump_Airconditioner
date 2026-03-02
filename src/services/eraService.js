@@ -555,7 +555,8 @@ const formatLocalDate = (date) => {
  */
 export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
   try {
-    const url = `${ERA_API_BASE_URL}/chip_manager/configs/value_history_v3/?configs=${configId}&date_from=${encodeURIComponent(
+    // Forward the original path via query parameters to the Vercel Proxy Function
+    const url = `/api/proxy?path=/chip_manager/configs/value_history_v3/&configs=${configId}&date_from=${encodeURIComponent(
       dateFrom
     )}&date_to=${encodeURIComponent(dateTo)}`;
 
@@ -566,7 +567,6 @@ export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        Authorization: "Token a159b7047b33aebfdb2e83f614c5049e5d760d6d",
       },
     });
 
@@ -973,10 +973,6 @@ export const getPowerConsumptionConfigId = () => {
 // ==========================================
 // API MAPPING HELPERS
 // ==========================================
-const ERA_API_BASE_URL = import.meta.env.PROD 
-  ? "https://backend.eoh.io/api" 
-  : "/api";
-const ERA_API_TOKEN = "Token a159b7047b33aebfdb2e83f614c5049e5d760d6d";
 const HARDCODED_UNIT_ID = 10922;
 
 /**
@@ -986,13 +982,13 @@ const HARDCODED_UNIT_ID = 10922;
  */
 export const fetchUnitChips = async (unitId = HARDCODED_UNIT_ID) => {
   try {
+    // Route through the vercel API backend wrapper proxy
     const response = await fetch(
-      `${ERA_API_BASE_URL}/property_manager/iot_dashboard/filters/owner/chips/?unit=${unitId}`,
+      `/api/proxy?path=/property_manager/iot_dashboard/filters/owner/chips/&unit=${unitId}`,
       {
         method: "GET",
         headers: {
           Accept: "application/json",
-          Authorization: ERA_API_TOKEN,
         },
       }
     );
@@ -1024,14 +1020,13 @@ export const fetchChipConfigs = async (chipId) => {
   }
 
   try {
-    const url = `${ERA_API_BASE_URL}/chip_manager/configs/?sensor__chip=${chipId}`;
+    const url = `/api/proxy?path=/chip_manager/configs/&sensor__chip=${chipId}`;
     console.log("Fetching configs for chip:", chipId, "URL:", url);
 
     const response = await fetch(url, {
       method: "GET",
       headers: {
         Accept: "application/json",
-        Authorization: ERA_API_TOKEN,
       },
     });
 
