@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: "/PowerConsump_Airconditioner/",
+  base: process.env.VERCEL ? "/" : "/PowerConsump_Airconditioner/",
   plugins: [
     react({
       babel: {

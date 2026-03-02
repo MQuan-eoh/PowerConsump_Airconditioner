@@ -10,7 +10,7 @@ function App() {
   return (
     <EraProvider>
       <MqttProvider>
-        <BrowserRouter basename="/PowerConsump_Airconditioner">
+        <BrowserRouter basename={undefined /* Let Vite/Vercel handles root route automagically, or fallback to BASE_URL */}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/control/:acId" element={<ControlPanel />} />
