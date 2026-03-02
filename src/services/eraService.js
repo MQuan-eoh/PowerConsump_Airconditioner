@@ -555,7 +555,7 @@ const formatLocalDate = (date) => {
  */
 export const getHistoryValueV3 = async (configId, dateFrom, dateTo) => {
   try {
-    const url = `/api/chip_manager/configs/value_history_v3/?configs=${configId}&date_from=${encodeURIComponent(
+    const url = `${ERA_API_BASE_URL}/chip_manager/configs/value_history_v3/?configs=${configId}&date_from=${encodeURIComponent(
       dateFrom
     )}&date_to=${encodeURIComponent(dateTo)}`;
 
@@ -973,7 +973,9 @@ export const getPowerConsumptionConfigId = () => {
 // ==========================================
 // API MAPPING HELPERS
 // ==========================================
-const ERA_API_BASE_URL = "/api";
+const ERA_API_BASE_URL = import.meta.env.PROD 
+  ? "https://backend.eoh.io/api" 
+  : "/api";
 const ERA_API_TOKEN = "Token a159b7047b33aebfdb2e83f614c5049e5d760d6d";
 const HARDCODED_UNIT_ID = 10922;
 
